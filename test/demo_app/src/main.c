@@ -4,6 +4,7 @@
 NandiMutex mutex;
 
 void example_thread(char *text) {
+    printf("Thread %llu started\n", nandi_threading_thread_get_id(nandi_threading_get_current_thread()));
     for (int i = 0; i <10; ++i) {
         nandi_threading_mutex_wait(mutex);
         nandi_threading_thread_sleep(1);
