@@ -19,6 +19,22 @@ extern NandiMutex nandi_threading_mutex_create(); // Creates a mutex
 extern bool nandi_threading_mutex_wait(NandiMutex mutex); // Waits until mutex is unlocked and locks it for current thread
 extern bool nandi_threading_mutex_release(NandiMutex mutex); // Releases mutex lock state
 
+// Logger
+typedef enum {
+    LOGGERTYPE_CONSOLE,
+    LOGGERTYPE_FILE
+} LoggerType;
+
+typedef enum {
+    LOGLEVEL_DEBUG,
+    LOGLEVEL_INFO,
+    LOGLEVEL_WARNING,
+    LOGLEVEL_ERROR
+} LogLevel;
+
+extern void nandi_logger_initialize(LoggerType type);
+extern void nandi_logger_log(LogLevel level, char *message);
+
 // Context
 #ifndef NANDI_INTERNAL
 typedef void *NandiContext;
