@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(nandi_all C)
+project(nandi)
 set(CMAKE_C_STANDARD 17)
 
 add_subdirectory(src)
