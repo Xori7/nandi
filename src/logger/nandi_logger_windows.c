@@ -4,10 +4,10 @@
 #include <stdio.h>
 #include <windows.h>
 
-volatile LoggerType loggerType = LOGGERTYPE_CONSOLE;
+volatile LoggerMode loggerType = LOGGERMODE_CONSOLE;
 NandiMutex fileMutex;
 
-extern void nandi_logger_initialize(LoggerType type) {
+extern void nandi_logger_initialize(LoggerMode type) {
     loggerType = type;
     fileMutex = nandi_threading_mutex_create();
 
@@ -23,10 +23,10 @@ extern void nandi_logger_log(LogLevel level, char *message) {
              logLevelConsoleColors[level], time.wMonth, time.wDay, time.wYear, time.wHour, time.wMinute, time.wSecond, time.wMilliseconds,
              logLevelNames[level], nandi_threading_thread_get_id(nandi_threading_get_current_thread()), message, ANSI_COLOR_RESET);
 
-    if (loggerType & LOGGERTYPE_CONSOLE) {
+    if (loggerType & LOGGERMODE_CONSOLE) {
         printf("%s", resultingText);
     }
-    if (loggerType & LOGGERTYPE_FILE) {
+    if (loggerType & LOGGERMODE_FILE) {
         nandi_threading_mutex_wait(fileMutex);
         FILE *file = fopen("log.txt", "a");
         fprintf(file, "%s", resultingText);

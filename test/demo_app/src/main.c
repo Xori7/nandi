@@ -17,7 +17,7 @@ void example_thread(char *text) {
 
 int main() {
     NandiContext context = nandi_context_create();
-    nandi_logger_initialize(LOGGERTYPE_CONSOLE | LOGGERTYPE_FILE);
+    nandi_logger_initialize(LOGGERMODE_CONSOLE | LOGGERMODE_FILE);
     mutex = nandi_threading_mutex_create();
     NandiThread thread = nandi_threading_thread_create((void (*)(void *)) example_thread, "Hello from thread!");
     NandiThread thread1 = nandi_threading_thread_create((void (*)(void *)) example_thread, "Hello from cat!");

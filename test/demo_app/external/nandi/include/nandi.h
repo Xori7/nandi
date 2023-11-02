@@ -21,9 +21,9 @@ extern bool nandi_threading_mutex_release(NandiMutex mutex); // Releases mutex l
 
 // Logger
 typedef enum {
-    LOGGERTYPE_CONSOLE = 0b01,
-    LOGGERTYPE_FILE = 0b10
-} LoggerType;
+    LOGGERMODE_CONSOLE = 0b01,
+    LOGGERMODE_FILE = 0b10
+} LoggerMode;
 
 typedef enum {
     LOGLEVEL_DEBUG,
@@ -32,7 +32,7 @@ typedef enum {
     LOGLEVEL_ERROR
 } LogLevel;
 
-extern void nandi_logger_initialize(LoggerType type);
+extern void nandi_logger_initialize(LoggerMode type);
 extern void nandi_logger_log(LogLevel level, char *message);
 
 // Context
