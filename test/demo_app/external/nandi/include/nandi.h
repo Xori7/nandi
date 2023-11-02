@@ -21,8 +21,8 @@ extern bool nandi_threading_mutex_release(NandiMutex mutex); // Releases mutex l
 
 // Logger
 typedef enum {
-    LOGGERTYPE_CONSOLE,
-    LOGGERTYPE_FILE
+    LOGGERTYPE_CONSOLE = 0b01,
+    LOGGERTYPE_FILE = 0b10
 } LoggerType;
 
 typedef enum {
