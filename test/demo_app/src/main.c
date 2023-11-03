@@ -9,7 +9,7 @@ void example_thread(char *text) {
         nandi_threading_mutex_wait(mutex);
         nandi_logger_log(LOGLEVEL_INFO, "This is info");
         nandi_logger_log(LOGLEVEL_WARNING, "This is warning");
-        nandi_logger_log(LOGLEVEL_ERROR, "This is error!");
+        nandi_logger_log(LOGLEVEL_ERROR, "This is error");
         nandi_threading_mutex_release(mutex);
     }
     nandi_logger_log(LOGLEVEL_DEBUG, "This is debug");

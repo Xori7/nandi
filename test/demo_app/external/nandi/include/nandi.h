@@ -32,8 +32,8 @@ typedef enum {
     LOGLEVEL_ERROR
 } LogLevel;
 
-extern void nandi_logger_initialize(LoggerMode type);
-extern void nandi_logger_log(LogLevel level, char *message);
+extern void nandi_logger_initialize(LoggerMode mode); // Initializes logger with specific mode. IMPORTANT: Should be called only once before any nandi_logger_log call
+extern void nandi_logger_log(LogLevel level, char *message); // Logs message and marks it with specific log level
 
 // Context
 #ifndef NANDI_INTERNAL

@@ -5,11 +5,11 @@
 #include <windows.h>
 
 volatile LoggerMode loggerType = LOGGERMODE_CONSOLE;
-NandiMutex fileMutex;
+NandiMutex logMutex;
 
 extern void nandi_logger_initialize(LoggerMode mode) {
     loggerType = mode;
-    fileMutex = nandi_threading_mutex_create();
+    logMutex = nandi_threading_mutex_create();
 
     if (mode & LOGGERMODE_FILE) {
         remove("log-previous.txt");
@@ -28,14 +28,14 @@ extern void nandi_logger_log(LogLevel level, char *message) {
              time.wYear, time.wMonth, time.wDay, time.wHour, time.wMinute, time.wSecond, time.wMilliseconds,
              logLevelNames[level], nandi_threading_thread_get_id(nandi_threading_get_current_thread()), message);
 
+    nandi_threading_mutex_wait(logMutex);
     if (loggerType & LOGGERMODE_CONSOLE) {
         printf("%s%s%s", logLevelConsoleColors[level], resultingText, ANSI_COLOR_RESET);
     }
     if (loggerType & LOGGERMODE_FILE) {
-        nandi_threading_mutex_wait(fileMutex);
         FILE *file = fopen("log.txt", "a");
         fprintf(file, "%s", resultingText);
         fclose(file);
-        nandi_threading_mutex_release(fileMutex);
     }
+    nandi_threading_mutex_release(logMutex);
 }
