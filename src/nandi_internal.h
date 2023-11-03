@@ -3,10 +3,10 @@
 
 //Logger
 static char *logLevelNames[4] = {
-    " DEBUG ",
-    " INFO  ",
-    "WARNING",
-    " ERROR "
+    "DEBUG",
+    "INFO ",
+    "WARN ",
+    "ERROR"
 };
 #define ANSI_COLOR_RED     "\x1b[91m"
 #define ANSI_COLOR_GREEN   "\x1b[92m"

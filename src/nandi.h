@@ -32,7 +32,7 @@ typedef enum {
     LOGLEVEL_ERROR
 } LogLevel;
 
-extern void nandi_logger_initialize(LoggerMode type);
+extern void nandi_logger_initialize(LoggerMode mode);
 extern void nandi_logger_log(LogLevel level, char *message);
 
 // Context
