@@ -4,21 +4,18 @@
 #include <stdio.h>
 #include <windows.h>
 
-volatile LoggerMode loggerType = LOGGERMODE_CONSOLE;
+volatile NandiLoggerMode loggerType = LOGGERMODE_CONSOLE;
 NandiMutex logMutex;
 
-extern void nandi_logger_initialize(LoggerMode mode) {
+extern NandiLogger nandi_logger_create(NandiLoggerMode mode, char *filePath) {
     loggerType = mode;
     logMutex = nandi_threading_mutex_create();
 
-    if (mode & LOGGERMODE_FILE) {
-        remove("log-previous.txt");
-        rename("log.txt", "log-previous.txt");
-        remove("log.txt");
-    }
+    fopen_s(NULL, filePath, "w");
+    return
 }
 
-extern void nandi_logger_log(LogLevel level, char *message) {
+extern void nandi_logger_log(NandiLogger logger, NandiLogLevel level, char *message) {
     uint32_t length = (64 + strlen(message));
     char *resultingText = malloc(length * sizeof *message);
 
@@ -33,7 +30,8 @@ extern void nandi_logger_log(LogLevel level, char *message) {
         printf("%s%s%s", logLevelConsoleColors[level], resultingText, ANSI_COLOR_RESET);
     }
     if (loggerType & LOGGERMODE_FILE) {
-        FILE *file = fopen("log.txt", "a");
+        FILE *file;
+        fopen_s(&file, "log.txt", "a");
         fprintf(file, "%s", resultingText);
         fclose(file);
     }

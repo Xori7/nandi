@@ -23,17 +23,17 @@ extern bool nandi_threading_mutex_release(NandiMutex mutex); // Releases mutex l
 typedef enum {
     LOGGERMODE_CONSOLE = 0b01,
     LOGGERMODE_FILE = 0b10
-} LoggerMode;
+} NandiLoggerMode;
 
 typedef enum {
     LOGLEVEL_DEBUG,
     LOGLEVEL_INFO,
     LOGLEVEL_WARNING,
     LOGLEVEL_ERROR
-} LogLevel;
+} NandiLogLevel;
 
-extern void nandi_logger_initialize(LoggerMode mode); // Initializes logger with specific mode. IMPORTANT: Should be called only once before any nandi_logger_log call
-extern void nandi_logger_log(LogLevel level, char *message); // Logs message and marks it with specific log level
+extern void nandi_logger_initialize(NandiLoggerMode mode); // Initializes logger with specific mode. IMPORTANT: Should be called only once before any nandi_logger_log call
+extern void nandi_logger_log(NandiLogLevel level, char *message); // Logs message and marks it with specific log level
 
 // Context
 #ifndef NANDI_INTERNAL
