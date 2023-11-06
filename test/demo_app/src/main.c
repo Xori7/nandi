@@ -4,6 +4,12 @@
 NMutex mutex;
 NLogger logger;
 
+void asdf_func(NTestRunner runner) {
+    int i = 0;
+    int b = i + 5;
+    n_test_assert_true(runner, b);
+}
+
 void example_thread(char *text) {
     printf("Thread %llu started\n", n_threading_thread_get_id(n_threading_get_current_thread()));
     for (int i = 0; i <10; ++i) {
@@ -14,6 +20,8 @@ void example_thread(char *text) {
         n_threading_mutex_release(mutex);
     }
     n_logger_log(logger, LOGLEVEL_DEBUG, "This is debug");
+    NTestRunner runner = n_test_runner_create(logger);
+    asdf_func(runner);
 }
 
 int main() {

@@ -43,14 +43,23 @@ typedef struct {
 #endif
 
 extern NLogger n_logger_create(NLoggerMode mode, char *filePath); // Initializes logger with specific mode. IMPORTANT: Should be called only once before any n_logger_log call
-extern void n_logger_log(NLogger logger, NLogLevel level, char *message); // Logs message and marks it with specific log level
 extern void n_logger_destroy(NLogger logger); //Destroys the logger
+extern void n_logger_log(NLogger logger, NLogLevel level, char *message); // Logs message and marks it with specific log level
 
 // Test
-typedef void *NTestContext;
+#ifndef NANDI_INTERNAL
+typedef void *NTestRunner;
+#else
+typedef struct {
+    NLogger logger;
+} *NTestRunner;
+#endif
 
-extern NTestContext n_test_context_create(NLogger logger);
-extern void n_test_assert_true();
+extern NTestRunner n_test_runner_create(NLogger logger);
+extern void n_test_runner_destroy(NTestRunner testRunner);
+
+void n_internal_test_assert_true(NTestRunner testRunner, bool value, const char *testName);
+#define n_test_assert_true(runner, value) n_internal_test_assert_true(runner, value, __func__)
 
 // Context
 #ifndef NANDI_INTERNAL

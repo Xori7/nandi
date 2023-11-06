@@ -1,5 +1,7 @@
 #ifndef NANDI_INTERNAL
 #define NANDI_INTERNAL
+#include <stdbool.h>
+#include <stdint.h>
 
 //Logger
 static char *logLevelNames[4] = {
