@@ -26,7 +26,7 @@ static char *logLevelConsoleColors[4] = {
 // Context
 typedef struct {
     int a;
-} *NandiContext;
+} *NContext;
 
 #include "nandi.h"
 #endif

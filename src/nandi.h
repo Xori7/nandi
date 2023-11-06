@@ -5,57 +5,59 @@
 #include <stdint.h>
 
 // Threading
-typedef void *NandiThread;
-typedef void *NandiMutex;
+typedef void *NThread;
+typedef void *NMutex;
 
-extern NandiThread nandi_threading_thread_create(void (*func)(void*), void* args); // Creates new thread and executes func with args
-extern void nandi_threading_thread_wait(NandiThread thread); //Waits until thread finishes its execution
-extern void nandi_threading_thread_terminate(NandiThread thread, int exitCode); // Terminates thread with exitCode
-extern uint64_t nandi_threading_thread_get_id(NandiThread thread);
-extern void nandi_threading_thread_sleep(uint64_t milliseconds);
-extern NandiThread nandi_threading_get_current_thread();
+extern NThread n_threading_thread_create(void (*func)(void*), void* args); // Creates new thread and executes func with args
+extern void n_threading_thread_wait(NThread thread); //Waits until thread finishes its execution
+extern void n_threading_thread_terminate(NThread thread, int exitCode); // Terminates thread with exitCode
+extern uint64_t n_threading_thread_get_id(NThread thread);
+extern void n_threading_thread_sleep(uint64_t milliseconds);
+extern NThread n_threading_get_current_thread();
 
-extern NandiMutex nandi_threading_mutex_create(); // Creates a mutex
-extern bool nandi_threading_mutex_wait(NandiMutex mutex); // Waits until mutex is unlocked and locks it for current thread
-extern bool nandi_threading_mutex_release(NandiMutex mutex); // Releases mutex lock state
+extern NMutex n_threading_mutex_create(); // Creates a mutex
+extern bool n_threading_mutex_wait(NMutex mutex); // Waits until mutex is unlocked and locks it for current thread
+extern bool n_threading_mutex_release(NMutex mutex); // Releases mutex lock state
 
 // Logger
 typedef enum {
     LOGGERMODE_CONSOLE = 0b01,
     LOGGERMODE_FILE = 0b10
-} NandiLoggerMode;
+} NLoggerMode;
 
 typedef enum {
     LOGLEVEL_DEBUG,
     LOGLEVEL_INFO,
     LOGLEVEL_WARNING,
     LOGLEVEL_ERROR
-} NandiLogLevel;
+} NLogLevel;
 
 #ifndef NANDI_INTERNAL
-typedef void *NandiLogger;
+typedef void *NLogger;
 #else
 typedef struct {
     char *filePath;
-    NandiLoggerMode mode;
-} NandiLogger;
+    volatile NLoggerMode mode;
+    NMutex logMutex;
+} *NLogger;
 #endif
 
-extern NandiLogger nandi_logger_create(NandiLoggerMode mode, char *filePath); // Initializes logger with specific mode. IMPORTANT: Should be called only once before any nandi_logger_log call
-extern void nandi_logger_log(NandiLogger logger, NandiLogLevel level, char *message); // Logs message and marks it with specific log level
+extern NLogger n_logger_create(NLoggerMode mode, char *filePath); // Initializes logger with specific mode. IMPORTANT: Should be called only once before any n_logger_log call
+extern void n_logger_log(NLogger logger, NLogLevel level, char *message); // Logs message and marks it with specific log level
+extern void n_logger_destroy(NLogger logger); //Destroys the logger
 
 // Test
-typedef void *NandiTestContext;
+typedef void *NTestContext;
 
-extern NandiTestContext nandi_test_context_create(NandiLogger logger);
-extern void nandi_test_assert_true();
+extern NTestContext n_test_context_create(NLogger logger);
+extern void n_test_assert_true();
 
 // Context
 #ifndef NANDI_INTERNAL
-typedef void *NandiContext;
+typedef void *NContext;
 #endif
 
-extern NandiContext nandi_context_create();
-extern void nandi_context_destroy(NandiContext context);
+extern NContext n_context_create();
+extern void n_context_destroy(NContext context);
 
 #endif

@@ -4,18 +4,18 @@
 #include <stdio.h>
 #include <windows.h>
 
-volatile NandiLoggerMode loggerType = LOGGERMODE_CONSOLE;
-NandiMutex logMutex;
-
-extern NandiLogger nandi_logger_create(NandiLoggerMode mode, char *filePath) {
-    loggerType = mode;
-    logMutex = nandi_threading_mutex_create();
-
-    fopen_s(NULL, filePath, "w");
-    return
+extern NLogger n_logger_create(NLoggerMode mode, char *filePath) {
+    NLogger logger = malloc(sizeof *logger);
+    logger->mode = mode;
+    logger->filePath = filePath;
+    logger->logMutex = n_threading_mutex_create();
+    FILE *file;
+    fopen_s(&file, filePath, "w");
+    fclose(file);
+    return logger;
 }
 
-extern void nandi_logger_log(NandiLogger logger, NandiLogLevel level, char *message) {
+extern void n_logger_log(NLogger logger, NLogLevel level, char *message) {
     uint32_t length = (64 + strlen(message));
     char *resultingText = malloc(length * sizeof *message);
 
@@ -23,17 +23,21 @@ extern void nandi_logger_log(NandiLogger logger, NandiLogLevel level, char *mess
     GetLocalTime(&time);
     snprintf(resultingText, length, "[%04d-%02d-%02d][%02d:%02d:%02d.%03d][%s][Thread:%06llu]: %s\n",
              time.wYear, time.wMonth, time.wDay, time.wHour, time.wMinute, time.wSecond, time.wMilliseconds,
-             logLevelNames[level], nandi_threading_thread_get_id(nandi_threading_get_current_thread()), message);
+             logLevelNames[level], n_threading_thread_get_id(n_threading_get_current_thread()), message);
 
-    nandi_threading_mutex_wait(logMutex);
-    if (loggerType & LOGGERMODE_CONSOLE) {
+    n_threading_mutex_wait(logger->logMutex);
+    if (logger->mode & LOGGERMODE_CONSOLE) {
         printf("%s%s%s", logLevelConsoleColors[level], resultingText, ANSI_COLOR_RESET);
     }
-    if (loggerType & LOGGERMODE_FILE) {
-        FILE *file;
-        fopen_s(&file, "log.txt", "a");
+    if (logger->mode & LOGGERMODE_FILE) {
+        FILE *file = NULL;
+        fopen_s(&file, logger->filePath, "a");
         fprintf(file, "%s", resultingText);
         fclose(file);
     }
-    nandi_threading_mutex_release(logMutex);
+    n_threading_mutex_release(logger->logMutex);
+}
+
+extern void n_logger_destroy(NLogger logger) {
+    free(logger);
 }
