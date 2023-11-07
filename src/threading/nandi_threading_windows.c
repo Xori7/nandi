@@ -1,7 +1,7 @@
+#ifdef _WINDOWS
+
 #include "../nandi_internal.h"
 #include <windows.h>
-
-#ifdef _WINDOWS
 
 DWORD WINAPI MyThreadFunction(LPVOID lpParam);
 
