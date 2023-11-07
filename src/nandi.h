@@ -64,8 +64,9 @@ typedef struct {
 extern NTestRunner n_test_runner_create(NLogger logger);
 extern void n_test_runner_destroy(NTestRunner testRunner);
 
-void n_internal_test_assert_true(NTestRunner testRunner, bool value, const char *testName);
-#define n_test_assert_true(runner, value) n_internal_test_assert_true(runner, value, __func__)
+void n_internal_test_assert_equal(NTestRunner testRunner, const char *testName, int32_t testLine, bool condition, const char *expectedFormat, const char *actualFormat, ...);
+#define n_test_assert_true(runner, value) n_internal_test_assert_equal(runner, __func__, __LINE__, value, "%s", "%s", "true", "false")
+#define n_test_assert_int32_equal(runner, expected, actual) n_internal_test_assert_equal(runner, __func__, __LINE__, expected == actual, "%d", "%d", expected, actual)
 
 // Context
 #ifndef NANDI_INTERNAL

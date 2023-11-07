@@ -4,6 +4,7 @@ NTestRunner testRunner;
 
 void test_example(int a, int b) {
     n_test_assert_true(testRunner, a == b);
+    n_test_assert_int32_equal(testRunner, a, b);
 }
 
 int main() {
