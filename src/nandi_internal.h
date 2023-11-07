@@ -3,6 +3,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+// CString
+char *n_internal_cstring_format_args(const char *format, va_list args);
+
 //Logger
 static char *logLevelNames[4] = {
     "DEBUG",

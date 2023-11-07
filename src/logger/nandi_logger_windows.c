@@ -15,15 +15,19 @@ extern NLogger n_logger_create(NLoggerMode mode, char *filePath) {
     return logger;
 }
 
-extern void n_logger_log(NLogger logger, NLogLevel level, char *message) {
-    uint32_t length = (64 + strlen(message));
-    char *resultingText = malloc(length * sizeof *message);
+extern void n_logger_destroy(NLogger logger) {
+    free(logger);
+}
 
+extern void n_logger_log(NLogger logger, NLogLevel level, char *message) {
     SYSTEMTIME time;
     GetLocalTime(&time);
-    snprintf(resultingText, length, "[%04d-%02d-%02d][%02d:%02d:%02d.%03d][%s][Thread:%06llu]: %s\n",
-             time.wYear, time.wMonth, time.wDay, time.wHour, time.wMinute, time.wSecond, time.wMilliseconds,
-             logLevelNames[level], n_threading_thread_get_id(n_threading_get_current_thread()), message);
+    char *resultingText = n_cstring_format("[%04d-%02d-%02d][%02d:%02d:%02d.%03d][%s][Thread:%06llu]: %s\n",
+                                           time.wYear, time.wMonth, time.wDay,
+                                           time.wHour, time.wMinute, time.wSecond, time.wMilliseconds,
+                                           logLevelNames[level],
+                                           n_threading_thread_get_id(n_threading_get_current_thread()),
+                                           message);
 
     n_threading_mutex_wait(logger->logMutex);
     if (logger->mode & LOGGERMODE_CONSOLE) {
@@ -36,8 +40,12 @@ extern void n_logger_log(NLogger logger, NLogLevel level, char *message) {
         fclose(file);
     }
     n_threading_mutex_release(logger->logMutex);
+    free(resultingText);
 }
 
-extern void n_logger_destroy(NLogger logger) {
-    free(logger);
+extern void n_logger_log_format(NLogger logger, NLogLevel level, const char *format, ...) {
+    va_list args;
+            va_start(args, format);
+    n_logger_log(logger, level, n_internal_cstring_format_args(format, args));
+            va_end(args);
 }

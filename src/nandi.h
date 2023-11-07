@@ -4,6 +4,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+// CString
+extern char *n_cstring_format(const char *format, ...);
+
 // Threading
 typedef void *NThread;
 typedef void *NMutex;
@@ -45,6 +48,7 @@ typedef struct {
 extern NLogger n_logger_create(NLoggerMode mode, char *filePath); // Initializes logger with specific mode. IMPORTANT: Should be called only once before any n_logger_log call
 extern void n_logger_destroy(NLogger logger); //Destroys the logger
 extern void n_logger_log(NLogger logger, NLogLevel level, char *message); // Logs message and marks it with specific log level
+extern void n_logger_log_format(NLogger logger, NLogLevel level, const char *format, ...); // Logs message, formats it and marks it with specific log level
 
 // Test
 #ifndef NANDI_INTERNAL
@@ -52,6 +56,8 @@ typedef void *NTestRunner;
 #else
 typedef struct {
     NLogger logger;
+    volatile uint32_t passedTestCount;
+    volatile uint32_t allTestCount;
 } *NTestRunner;
 #endif
 

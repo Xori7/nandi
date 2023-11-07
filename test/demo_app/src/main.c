@@ -8,6 +8,7 @@ void asdf_func(NTestRunner runner) {
     int i = 0;
     int b = i + 5;
     n_test_assert_true(runner, b);
+    n_test_assert_true(runner, i);
 }
 
 void example_thread(char *text) {
@@ -17,11 +18,13 @@ void example_thread(char *text) {
         n_logger_log(logger, LOGLEVEL_INFO, "This is info");
         n_logger_log(logger, LOGLEVEL_WARNING, "This is warning");
         n_logger_log(logger, LOGLEVEL_ERROR, "This is error");
+        n_logger_log_format(logger, LOGLEVEL_DEBUG, "This is a number: %d, and this is a string: %s", 5, "string");
         n_threading_mutex_release(mutex);
     }
     n_logger_log(logger, LOGLEVEL_DEBUG, "This is debug");
     NTestRunner runner = n_test_runner_create(logger);
     asdf_func(runner);
+    n_test_runner_destroy(runner);
 }
 
 int main() {
