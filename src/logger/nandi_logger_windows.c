@@ -9,9 +9,12 @@ extern NLogger n_logger_create(NLoggerMode mode, char *filePath) {
     logger->mode = mode;
     logger->filePath = filePath;
     logger->logMutex = n_threading_mutex_create();
-    FILE *file;
-    fopen_s(&file, filePath, "w");
-    fclose(file);
+
+    if (mode & LOGGERMODE_FILE) {
+        FILE *file = NULL;
+        fopen_s(&file, filePath, "w");
+        fclose(file);
+    }
     return logger;
 }
 
