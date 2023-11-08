@@ -1,5 +1,6 @@
+#ifdef _WINDOWS
+
 #include "../nandi_internal.h"
-#include <string.h>
 #include <malloc.h>
 #include <stdio.h>
 #include <windows.h>
@@ -52,3 +53,5 @@ extern void n_logger_log_format(NLogger logger, NLogLevel level, const char *for
     n_logger_log(logger, level, n_internal_cstring_format_args(format, args));
             va_end(args);
 }
+
+#endif
