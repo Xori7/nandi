@@ -68,8 +68,8 @@ void n_internal_test_assert_equal(NTestRunner testRunner, const char *testName, 
 #define n_test_assert_true(runner, value) n_internal_test_assert_equal(runner, __func__, __LINE__, value, "%s", "%s", "true", "false")
 #define n_test_assert_false(runner, value) n_internal_test_assert_equal(runner, __func__, __LINE__, !value, "%s", "%s", "false", "true")
 #define n_test_assert_int32_equal(runner, expected, actual) n_internal_test_assert_equal(runner, __func__, __LINE__, actual == expected, "%d", "%d", expected, actual)
-#define n_test_assert_int32_greater(runner, a, b) n_internal_test_assert_equal(runner, __func__, __LINE__, a > b, ">%d", "%d", b, a)
-#define n_test_assert_int32_lower(runner, a, b) n_internal_test_assert_equal(runner, __func__, __LINE__, a < b, "<%d", "%d", b, a)
+#define n_test_assert_int32_greater(runner, a, b) n_internal_test_assert_equal(runner, __func__, __LINE__, a > b, "> %d", "%d", b, a)
+#define n_test_assert_int32_lower(runner, a, b) n_internal_test_assert_equal(runner, __func__, __LINE__, a < b, "< %d", "%d", b, a)
 
 // Context
 #ifndef NANDI_INTERNAL
