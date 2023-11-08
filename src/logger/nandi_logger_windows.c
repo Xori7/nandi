@@ -1,41 +1,57 @@
+#ifdef _WINDOWS
+
 #include "../nandi_internal.h"
-#include <string.h>
 #include <malloc.h>
 #include <stdio.h>
 #include <windows.h>
 
-volatile LoggerMode loggerType = LOGGERMODE_CONSOLE;
-NandiMutex logMutex;
-
-extern void nandi_logger_initialize(LoggerMode mode) {
-    loggerType = mode;
-    logMutex = nandi_threading_mutex_create();
+extern NLogger n_logger_create(NLoggerMode mode, char *filePath) {
+    NLogger logger = malloc(sizeof *logger);
+    logger->mode = mode;
+    logger->filePath = filePath;
+    logger->logMutex = n_threading_mutex_create();
 
     if (mode & LOGGERMODE_FILE) {
-        remove("log-previous.txt");
-        rename("log.txt", "log-previous.txt");
-        remove("log.txt");
+        FILE *file = NULL;
+        fopen_s(&file, filePath, "w");
+        fclose(file);
     }
+    return logger;
 }
 
-extern void nandi_logger_log(LogLevel level, char *message) {
-    uint32_t length = (64 + strlen(message));
-    char *resultingText = malloc(length * sizeof *message);
+extern void n_logger_destroy(NLogger logger) {
+    free(logger);
+}
 
+extern void n_logger_log(NLogger logger, NLogLevel level, char *message) {
     SYSTEMTIME time;
     GetLocalTime(&time);
-    snprintf(resultingText, length, "[%04d-%02d-%02d][%02d:%02d:%02d.%03d][%s][Thread:%06llu]: %s\n",
-             time.wYear, time.wMonth, time.wDay, time.wHour, time.wMinute, time.wSecond, time.wMilliseconds,
-             logLevelNames[level], nandi_threading_thread_get_id(nandi_threading_get_current_thread()), message);
+    char *resultingText = n_cstring_format("[%04d-%02d-%02d][%02d:%02d:%02d.%03d][%s][Thread:%06llu]: %s\n",
+                                           time.wYear, time.wMonth, time.wDay,
+                                           time.wHour, time.wMinute, time.wSecond, time.wMilliseconds,
+                                           logLevelNames[level],
+                                           n_threading_thread_get_id(n_threading_get_current_thread()),
+                                           message);
 
-    nandi_threading_mutex_wait(logMutex);
-    if (loggerType & LOGGERMODE_CONSOLE) {
+    n_threading_mutex_wait(logger->logMutex);
+    if (logger->mode & LOGGERMODE_CONSOLE) {
         printf("%s%s%s", logLevelConsoleColors[level], resultingText, ANSI_COLOR_RESET);
     }
-    if (loggerType & LOGGERMODE_FILE) {
-        FILE *file = fopen("log.txt", "a");
+    if (logger->mode & LOGGERMODE_FILE) {
+        FILE *file = NULL;
+        fopen_s(&file, logger->filePath, "a");
         fprintf(file, "%s", resultingText);
         fclose(file);
     }
-    nandi_threading_mutex_release(logMutex);
+    n_threading_mutex_release(logger->logMutex);
+    free(resultingText);
 }
+
+extern void n_logger_log_format(NLogger logger, NLogLevel level, const char *format, ...) {
+    va_list args;
+            va_start(args, format);
+    n_logger_log(logger, level, n_internal_cstring_format_args(format, args));
+            va_end(args);
+}
+
+#endif

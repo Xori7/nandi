@@ -1,12 +1,18 @@
 #ifndef NANDI_INTERNAL
 #define NANDI_INTERNAL
+#include <stdbool.h>
+#include <stdint.h>
+
+// CString
+char *n_internal_cstring_format_args(const char *format, va_list args);
 
 //Logger
-static char *logLevelNames[4] = {
+static char *logLevelNames[] = {
     "DEBUG",
     "INFO ",
     "WARN ",
-    "ERROR"
+    "ERROR",
+    "TEST"
 };
 #define ANSI_COLOR_RED     "\x1b[91m"
 #define ANSI_COLOR_GREEN   "\x1b[92m"
@@ -16,17 +22,18 @@ static char *logLevelNames[4] = {
 #define ANSI_COLOR_CYAN    "\x1b[96m"
 #define ANSI_COLOR_WHITE    "\x1b[97m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
-static char *logLevelConsoleColors[4] = {
+static char *logLevelConsoleColors[] = {
         ANSI_COLOR_WHITE,
         ANSI_COLOR_CYAN,
         ANSI_COLOR_YELLOW,
-        ANSI_COLOR_RED
+        ANSI_COLOR_RED,
+        ANSI_COLOR_MAGENTA
 };
 
 // Context
 typedef struct {
     int a;
-} *NandiContext;
+} *NContext;
 
 #include "nandi.h"
 #endif
