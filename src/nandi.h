@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <malloc.h>
 
 // CString
 extern char *n_cstring_format(const char *format, ...);
@@ -51,6 +52,20 @@ extern void n_logger_destroy(NLogger logger); //Destroys the logger
 extern void n_logger_log(NLogger logger, NLogLevel level, char *message); // Logs message and marks it with specific log level
 extern void n_logger_log_format(NLogger logger, NLogLevel level, const char *format, ...); // Logs message, formats it and marks it with specific log level
 
+// Memory
+void *n_memory_alloc_debug(size_t size, const char *function, int32_t line);
+void n_memory_free_debug(void *pointer, const char *function, int32_t line);
+void n_memory_summary();
+#define MEMORY_DEBUG
+
+#ifdef MEMORY_DEBUG
+    #define n_memory_alloc(size) n_memory_alloc_debug(size, __func__, __LINE__)
+    #define n_memory_free(pointer) n_memory_free_debug(pointer, __func__, __LINE__); pointer = NULL
+#else
+    #define n_memory_alloc(size) malloc(size)
+    #define n_memory_free(pointer) free(pointer); pointer = NULL
+#endif
+
 // Test
 #ifndef NANDI_INTERNAL
 typedef void *NTestRunner;
@@ -77,7 +92,7 @@ void n_internal_test_assert_equal(NTestRunner testRunner, const char *testName, 
 typedef void *NContext;
 #endif
 
-extern NContext n_context_create();
+extern NContext n_context_create(void);
 extern void n_context_destroy(NContext context);
 
 #endif

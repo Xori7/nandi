@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <malloc.h>
 #include <stdarg.h>
 #include "nandi_internal.h"
 
@@ -15,8 +14,8 @@ char *n_internal_cstring_format_args(const char *format, va_list args) {
     size_t length;
     char *space;
 
-    length = vsnprintf(0, 0, format, args);
-    if ((space = malloc(length + 1)) != 0) {
+    length = vsnprintf(NULL, 0, format, args);
+    if ((space = n_memory_alloc(length + 1)) != NULL) {
         vsnprintf(space, length + 1, format, args);
         return space;
     }

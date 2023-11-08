@@ -1,12 +1,11 @@
 #ifdef _WINDOWS
 
 #include "../nandi_internal.h"
-#include <malloc.h>
 #include <stdio.h>
 #include <windows.h>
 
 extern NLogger n_logger_create(NLoggerMode mode, char *filePath) {
-    NLogger logger = malloc(sizeof *logger);
+    NLogger logger = n_memory_alloc(sizeof *logger);
     logger->mode = mode;
     logger->filePath = filePath;
     logger->logMutex = n_threading_mutex_create();
@@ -20,7 +19,7 @@ extern NLogger n_logger_create(NLoggerMode mode, char *filePath) {
 }
 
 extern void n_logger_destroy(NLogger logger) {
-    free(logger);
+    n_memory_free(logger);
 }
 
 extern void n_logger_log(NLogger logger, NLogLevel level, char *message) {
@@ -32,19 +31,20 @@ extern void n_logger_log(NLogger logger, NLogLevel level, char *message) {
                                            logLevelNames[level],
                                            n_threading_thread_get_id(n_threading_get_current_thread()),
                                            message);
+    n_memory_free(message);
 
-    n_threading_mutex_wait(logger->logMutex);
     if (logger->mode & LOGGERMODE_CONSOLE) {
         printf("%s%s%s", logLevelConsoleColors[level], resultingText, ANSI_COLOR_RESET);
     }
     if (logger->mode & LOGGERMODE_FILE) {
+        n_threading_mutex_wait(logger->logMutex);
         FILE *file = NULL;
         fopen_s(&file, logger->filePath, "a");
         fprintf(file, "%s", resultingText);
         fclose(file);
+        n_threading_mutex_release(logger->logMutex);
     }
-    n_threading_mutex_release(logger->logMutex);
-    free(resultingText);
+    n_memory_free(resultingText);
 }
 
 extern void n_logger_log_format(NLogger logger, NLogLevel level, const char *format, ...) {
