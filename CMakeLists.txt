@@ -6,9 +6,7 @@ add_library(nandi STATIC
         src/nandi_memory.c)
 add_subdirectory(src)
 
-add_executable(nandi_test
-        test/nandi_window_test.c
-        test/nandi_context_test.c)
+add_executable(nandi_test)
 add_subdirectory(test)
 
 target_link_libraries(nandi_test nandi)
