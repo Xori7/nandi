@@ -1,6 +1,6 @@
 #ifdef _WINDOWS
 
-#include "../nandi_internal.h"
+#include "nandi_internal.h"
 #include <stdio.h>
 #include <windows.h>
 
@@ -31,7 +31,6 @@ extern void n_logger_log(NLogger logger, NLogLevel level, char *message) {
                                            logLevelNames[level],
                                            n_threading_thread_get_id(n_threading_get_current_thread()),
                                            message);
-    n_memory_free(message);
 
     if (logger->mode & LOGGERMODE_CONSOLE) {
         printf("%s%s%s", logLevelConsoleColors[level], resultingText, ANSI_COLOR_RESET);

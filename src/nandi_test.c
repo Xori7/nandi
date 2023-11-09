@@ -1,5 +1,5 @@
 #include <stdarg.h>
-#include "../nandi_internal.h"
+#include "nandi_internal.h"
 
 extern NTestRunner n_test_runner_create(NLogger logger) {
     NTestRunner runner = n_memory_alloc(sizeof *runner);

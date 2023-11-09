@@ -7,13 +7,25 @@ NMutex mutex = NULL;
 
 typedef struct {
     void *pointer;
+    int32_t generation;
     size_t size;
     const char *func;
     int32_t line;
 } Memory;
 
-Memory memory[100000];
+typedef struct {
+    uint32_t memoryId;
+    uint32_t generation;
+} NSafePtr;
+
+Memory memory[100000] = {0};
 int index = 0;
+
+#define deref(type, var, ptr) \
+    ;if (memory[ptr.memoryId].generation == ptr.generation) \
+        var = *(type*)(memory[ptr.memoryId].pointer); \
+    else \
+        n_logger_log(nMemoryDebugLogger, LOGLEVEL_ERROR, "Null reference!"); \
 
 void *n_memory_alloc_debug(size_t size, const char *function, int32_t line) {
     void *ptr = malloc(size);
@@ -30,12 +42,21 @@ void *n_memory_alloc_debug(size_t size, const char *function, int32_t line) {
                 .func = function,
                 .line = line
         };
-        memory[index] = mem;
-        index++;
+        NSafePtr ptr = {
+                .memoryId = index,
+                .generation = 1
+        };
 
         if (!nMemoryDebugLogger) {
             nMemoryDebugLogger = n_logger_create(LOGGERMODE_CONSOLE, NULL);
         }
+        int n;
+        int c deref(int, c, ptr)
+        memory[index] = mem;
+        deref(int, b, ptr)
+
+        index++;
+
         n_logger_log_format(nMemoryDebugLogger, LOGLEVEL_DEBUG, "[MEMORY] Allocated %lld bytes. Func: %s, Line: %d",
                             size, function, line);
         isLogging = false;
