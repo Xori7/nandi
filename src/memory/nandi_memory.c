@@ -1,5 +1,5 @@
 #include <malloc.h>
-#include "nandi_internal.h"
+#include "../nandi_internal.h"
 
 NMutex mutex = NULL;
 bool isLogging = false;

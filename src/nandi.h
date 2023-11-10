@@ -66,6 +66,24 @@ void n_memory_summary(NLogger logger);
     #define n_memory_free(pointer) free(pointer); pointer = NULL
 #endif
 
+// Memory -> List
+typedef struct {
+    void *elements;
+    int64_t count;
+    int64_t capacity;
+    size_t typeSize;
+} NList;
+
+#define n_list_create(Type, capacity) { n_memory_alloc(sizeof(Type) * capacity), 0, capacity, sizeof(Type) }
+#define n_list_destroy(list) n_memory_free(list.elements)
+#define n_list_add(Type, list, value) ((Type*)list.elements)[sizeof(Type) * list.count] = value
+
+void foo() {
+    NList list = n_list_create(int, 10);
+    n_list_add(int, list, 7);
+    n_list_destroy(list);
+}
+
 // Test
 #ifndef NANDI_INTERNAL
 typedef void *NTestRunner;

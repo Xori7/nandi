@@ -3,7 +3,8 @@ project(nandi)
 set(CMAKE_C_STANDARD 17)
 
 add_library(nandi STATIC
-        src/nandi_memory.c)
+        src/memory/nandi_memory.c
+        src/memory/nandi_list.c)
 add_subdirectory(src)
 
 add_executable(nandi_test)
