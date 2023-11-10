@@ -67,22 +67,26 @@ void n_memory_summary(NLogger logger);
 #endif
 
 // Memory -> List
+//#ifdef NANDI_INTERNAL
 typedef struct {
     void *elements;
-    int64_t count;
-    int64_t capacity;
+    uint64_t count;
+    uint64_t capacity;
     size_t typeSize;
 } NList;
+//#else
+//typedef void *NList;
+//#endif
+
+//NList n_list_create(size_t typeSize, uint64_t capacity);
+//void n_list_destroy(NList list);
+//void n_list_add(NList list, void *value);
+//void *n_list_get(NList list, uint64_t index);
 
 #define n_list_create(Type, capacity) { n_memory_alloc(sizeof(Type) * capacity), 0, capacity, sizeof(Type) }
 #define n_list_destroy(list) n_memory_free(list.elements)
-#define n_list_add(Type, list, value) ((Type*)list.elements)[sizeof(Type) * list.count] = value
-
-void foo() {
-    NList list = n_list_create(int, 10);
-    n_list_add(int, list, 7);
-    n_list_destroy(list);
-}
+#define n_list_add(Type, list, value) *((Type*)(list.elements) + list.count) = value; list.count++
+#define n_list_get(Type, list, index) *((Type*)(list.elements) + index)
 
 // Test
 #ifndef NANDI_INTERNAL
@@ -104,7 +108,9 @@ void n_internal_test_assert_equal(NTestRunner testRunner, const char *testName, 
 #define n_test_assert_int32_equal(runner, expected, actual) n_internal_test_assert_equal(runner, __func__, __LINE__, actual == expected, "%d", "%d", expected, actual)
 #define n_test_assert_int32_greater(runner, a, b) n_internal_test_assert_equal(runner, __func__, __LINE__, a > b, "> %d", "%d", b, a)
 #define n_test_assert_int32_lower(runner, a, b) n_internal_test_assert_equal(runner, __func__, __LINE__, a < b, "< %d", "%d", b, a)
-
+#define n_test_assert_int64_equal(runner, expected, actual) n_internal_test_assert_equal(runner, __func__, __LINE__, actual == expected, "%ld", "%ld", expected, actual)
+#define n_test_assert_int64_greater(runner, a, b) n_internal_test_assert_equal(runner, __func__, __LINE__, a > b, "> %ld", "%ld", b, a)
+#define n_test_assert_int64_lower(runner, a, b) n_internal_test_assert_equal(runner, __func__, __LINE__, a < b, "< %ld", "%ld", b, a)
 // Context
 #ifndef NANDI_INTERNAL
 typedef void *NContext;

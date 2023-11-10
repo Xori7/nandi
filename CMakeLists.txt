@@ -7,7 +7,8 @@ add_library(nandi STATIC
         src/memory/nandi_list.c)
 add_subdirectory(src)
 
-add_executable(nandi_test)
+add_executable(nandi_test
+        test/nandi_list_test.c)
 add_subdirectory(test)
 
 target_link_libraries(nandi_test nandi)

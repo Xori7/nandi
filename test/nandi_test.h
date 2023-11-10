@@ -5,6 +5,7 @@
 NLogger logger;
 NTestRunner testRunner;
 
+void test_n_list();
 void test_n_context();
 
 
