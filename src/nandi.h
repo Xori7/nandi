@@ -55,9 +55,9 @@ extern void n_logger_log_format(NLogger logger, NLogLevel level, const char *for
 // Memory
 void *n_memory_alloc_debug(size_t size, const char *function, int32_t line);
 void n_memory_free_debug(void *pointer, const char *function, int32_t line);
-void n_memory_summary();
-#define MEMORY_DEBUG
+void n_memory_summary(NLogger logger);
 
+#define MEMORY_DEBUG
 #ifdef MEMORY_DEBUG
     #define n_memory_alloc(size) n_memory_alloc_debug(size, __func__, __LINE__)
     #define n_memory_free(pointer) n_memory_free_debug(pointer, __func__, __LINE__); pointer = NULL

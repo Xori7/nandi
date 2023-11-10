@@ -32,25 +32,27 @@ extern void n_logger_log(NLogger logger, NLogLevel level, char *message) {
                                            n_threading_thread_get_id(n_threading_get_current_thread()),
                                            message);
 
+    n_threading_mutex_wait(logger->logMutex);
     if (logger->mode & LOGGERMODE_CONSOLE) {
         printf("%s%s%s", logLevelConsoleColors[level], resultingText, ANSI_COLOR_RESET);
     }
     if (logger->mode & LOGGERMODE_FILE) {
-        n_threading_mutex_wait(logger->logMutex);
         FILE *file = NULL;
         fopen_s(&file, logger->filePath, "a");
         fprintf(file, "%s", resultingText);
         fclose(file);
-        n_threading_mutex_release(logger->logMutex);
     }
+    n_threading_mutex_release(logger->logMutex);
     n_memory_free(resultingText);
 }
 
 extern void n_logger_log_format(NLogger logger, NLogLevel level, const char *format, ...) {
     va_list args;
-            va_start(args, format);
-    n_logger_log(logger, level, n_internal_cstring_format_args(format, args));
-            va_end(args);
+    va_start(args, format);
+    char *message = n_internal_cstring_format_args(format, args);
+    n_logger_log(logger, level, message);
+    va_end(args);
+    n_memory_free(message);
 }
 
 #endif

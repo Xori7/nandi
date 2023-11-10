@@ -9,6 +9,8 @@ int main() {
 
     n_test_runner_destroy(testRunner);
     n_logger_destroy(logger);
-    n_memory_summary();
+#ifdef MEMORY_DEBUG
+    n_memory_summary(logger);
+#endif
     return 0;
 }
