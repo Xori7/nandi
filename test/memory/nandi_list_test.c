@@ -1,4 +1,4 @@
-#include "nandi_test.h"
+#include "../nandi_test.h"
 
 void test_n_list_create_with_correct_values(size_t typeSize, uint64_t capacity) {
     NList list = n_list_create(typeSize, capacity);
