@@ -100,9 +100,10 @@ extern NList n_list_create(size_t typeSize, uint64_t capacity);
 extern void n_list_destroy(NList list);
 extern void n_list_add(NList *list, void* value);
 extern void n_list_set(NList *list, uint64_t index, void *value);
-extern void n_list_get(NList list, uint64_t index, void *variable);
+extern void n_list_get(NList list, uint64_t index, void *destination);
 extern void n_list_remove_at(NList *list, uint64_t index);
 extern void n_list_clear(NList *list);
+extern uint64_t n_list_index_of(NList list, void *value);
 extern bool n_list_contains(NList list, void *value);
 
 void *i_n_list_get(NList list, uint64_t index);

@@ -105,6 +105,19 @@ void test_n_list_contains_returns_true_when_value_was_added_to_list() {
     n_list_destroy(list);
 }
 
+void test_n_list_index_of_returns_index_of_passed_element() {
+    NList list = n_list_create(sizeof(char*), 4);
+    char *text = "He just don't sleep :o";
+    n_list_add_inline(&list, char*, "I don't know why");
+    n_list_add_inline(&list, char*, "Or do I?");
+    n_list_add(&list, &text);
+    n_list_add_inline(&list, char*, "Btw, this is so scary that you can forget to put '&' before pointer variable in list_add argument (＠_＠;)");
+
+    n_assert_u64_eq(2, n_list_index_of(list, &text));
+
+    n_list_destroy(list);
+}
+
 void test_n_list() {
     test_n_list_create_with_correct_values(sizeof(int32_t), 10);
     test_n_list_create_with_correct_values(sizeof(int64_t), 420);
@@ -116,4 +129,5 @@ void test_n_list() {
     test_n_list_remove_at_decrements_count();
     test_n_list_clear_sets_count_to_zero();
     test_n_list_contains_returns_true_when_value_was_added_to_list();
+    test_n_list_index_of_returns_index_of_passed_element();
 }
