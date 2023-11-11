@@ -1,22 +1,23 @@
 #include <stdarg.h>
-#include "nandi_internal.h"
+#include "nandi.h"
 
-extern NTestRunner n_test_runner_create(NLogger logger) {
-    NTestRunner runner = n_memory_alloc(sizeof *runner);
-    runner->logger = logger;
-    runner->passedTestCount = 0;
-    runner->allTestCount = 0;
-    return runner;
+NTestRunner testRunner;
+
+extern void n_test_runner_start(NLogger logger) {
+    testRunner = n_memory_alloc(sizeof *testRunner);
+    testRunner->logger = logger;
+    testRunner->passedTestCount = 0;
+    testRunner->allTestCount = 0;
 }
 
-extern void n_test_runner_destroy(NTestRunner testRunner) {
+extern void n_test_runner_finish() {
     n_logger_log_format(testRunner->logger, LOGLEVEL_TEST,
                         "Running tests has finished. %d/%d assertions passed",
                         testRunner->passedTestCount, testRunner->allTestCount);
     n_memory_free(testRunner);
 }
 
-void n_internal_test_assert_equal(NTestRunner testRunner, const char *testName, int32_t testLine, bool condition, const char *format1, const char *format2, ...) {
+void i_n_test_assert(const char *testName, int32_t testLine, bool condition, const char *format1, const char *format2, ...) {
     if (condition) {
         n_logger_log_format(testRunner->logger, LOGLEVEL_TEST, "%s(line: %d) has passed", testName, testLine);
         testRunner->passedTestCount++;

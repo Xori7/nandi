@@ -1,5 +1,5 @@
 #include <malloc.h>
-#include "../nandi_internal.h"
+#include "../nandi.h"
 
 NMutex mutex = NULL;
 bool isLogging = false;
@@ -64,12 +64,11 @@ void n_memory_summary(NLogger logger) {
     n_threading_mutex_wait(mutex);
     if (!isLogging) {
         isLogging = true;
-        n_logger_log_format(logger, LOGLEVEL_INFO, "[MEMORY] Not deallocated memory regions: ");
         for (int i = 0; i < index; ++i) {
             if (memory[i].pointer == NULL)
                 continue;
             Memory mem = memory[i];
-            n_logger_log_format(logger, LOGLEVEL_ERROR, "[MEMORY] [%d]: Address %p, Size: %lld allocated at %s(line: %d)", i, mem.pointer,
+            n_logger_log_format(logger, LOGLEVEL_ERROR, "[MEMORY] Not deallocated memory region %u, address %p, allocated %llu bytes at %s(line: %d)", i, mem.pointer,
                                 mem.size, mem.func, mem.line);
         }
         isLogging = false;

@@ -1,6 +1,6 @@
 #ifdef _WINDOWS
 
-#include "nandi_internal.h"
+#include "nandi.h"
 #include <stdio.h>
 #include <windows.h>
 

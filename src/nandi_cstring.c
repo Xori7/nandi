@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdarg.h>
-#include "nandi_internal.h"
+#include "nandi.h"
 
 extern char *n_cstring_format(const char *format, ...) {
     va_list args;
