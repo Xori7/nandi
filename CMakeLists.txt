@@ -9,4 +9,3 @@ add_executable(nandi_test)
 add_subdirectory(test)
 
 target_link_libraries(nandi_test nandi)
-

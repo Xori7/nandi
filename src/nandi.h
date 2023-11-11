@@ -3,8 +3,10 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <malloc.h>
 
 // CString
+char *n_internal_cstring_format_args(const char *format, va_list args);
 extern char *n_cstring_format(const char *format, ...);
 
 // Threading
@@ -23,6 +25,30 @@ extern bool n_threading_mutex_wait(NMutex mutex); // Waits until mutex is unlock
 extern bool n_threading_mutex_release(NMutex mutex); // Releases mutex lock state
 
 // Logger
+static char *logLevelNames[] = {
+        "DEBUG",
+        "INFO ",
+        "WARN ",
+        "ERROR",
+        "TEST"
+};
+#define ANSI_COLOR_RED     "\x1b[91m"
+#define ANSI_COLOR_GREEN   "\x1b[92m"
+#define ANSI_COLOR_YELLOW  "\x1b[93m"
+#define ANSI_COLOR_BLUE    "\x1b[94m"
+#define ANSI_COLOR_MAGENTA "\x1b[95m"
+#define ANSI_COLOR_CYAN    "\x1b[96m"
+#define ANSI_COLOR_WHITE    "\x1b[97m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
+
+static char *logLevelConsoleColors[] = {
+        ANSI_COLOR_WHITE,
+        ANSI_COLOR_CYAN,
+        ANSI_COLOR_YELLOW,
+        ANSI_COLOR_RED,
+        ANSI_COLOR_MAGENTA
+};
+
 typedef enum {
     LOGGERMODE_CONSOLE = 0b01,
     LOGGERMODE_FILE = 0b10
@@ -36,48 +62,99 @@ typedef enum {
     LOGLEVEL_TEST
 } NLogLevel;
 
-#ifndef NANDI_INTERNAL
-typedef void *NLogger;
-#else
 typedef struct {
     char *filePath;
     volatile NLoggerMode mode;
     NMutex logMutex;
 } *NLogger;
-#endif
 
 extern NLogger n_logger_create(NLoggerMode mode, char *filePath); // Initializes logger with specific mode. IMPORTANT: Should be called only once before any n_logger_log call
 extern void n_logger_destroy(NLogger logger); //Destroys the logger
 extern void n_logger_log(NLogger logger, NLogLevel level, char *message); // Logs message and marks it with specific log level
 extern void n_logger_log_format(NLogger logger, NLogLevel level, const char *format, ...); // Logs message, formats it and marks it with specific log level
 
-// Test
-#ifndef NANDI_INTERNAL
-typedef void *NTestRunner;
+// Memory
+void *n_memory_alloc_debug(size_t size, const char *function, int32_t line);
+void n_memory_free_debug(void *pointer, const char *function, int32_t line);
+void n_memory_summary(NLogger logger);
+
+#define MEMORY_DEBUG
+#ifdef MEMORY_DEBUG
+    #define n_memory_alloc(size) n_memory_alloc_debug(size, __func__, __LINE__)
+    #define n_memory_free(pointer) n_memory_free_debug(pointer, __func__, __LINE__); pointer = NULL
 #else
+    #define n_memory_alloc(size) malloc(size)
+    #define n_memory_free(pointer) free(pointer); pointer = NULL
+#endif
+
+// Memory -> List
+typedef struct {
+    uint8_t *elements;
+    uint64_t count;
+    uint64_t capacity;
+    size_t typeSize;
+} NList;
+
+
+extern NList n_list_create(size_t typeSize, uint64_t capacity);
+extern void n_list_destroy(NList list);
+extern void n_list_add(NList *list, void* value);
+extern void n_list_set(NList *list, uint64_t index, void *value);
+extern void n_list_get(NList list, uint64_t index, void *destination);
+extern uint64_t n_list_index_of(NList list, void *value);
+extern void n_list_remove_at(NList *list, uint64_t index);
+extern bool n_list_remove(NList *list, void *value);
+extern void n_list_clear(NList *list);
+extern bool n_list_contains(NList list, void *value);
+
+void *i_n_list_get(NList list, uint64_t index);
+
+#define n_list_add_inline(list, Type, value) { Type i_var = value; n_list_add(list, &i_var); }
+#define n_list_set_inline(list, index, Type, value) { Type i_var = value; n_list_set(list, index, &i_var); }
+#define n_list_get_inline(list, index, Type) (*((Type*)i_n_list_get(list, index)))
+
+// Test
 typedef struct {
     NLogger logger;
     volatile uint32_t passedTestCount;
     volatile uint32_t allTestCount;
 } *NTestRunner;
-#endif
 
-extern NTestRunner n_test_runner_create(NLogger logger);
-extern void n_test_runner_destroy(NTestRunner testRunner);
+extern void n_test_runner_start(NLogger logger);
+extern void n_test_runner_finish();
 
-void n_internal_test_assert_equal(NTestRunner testRunner, const char *testName, int32_t testLine, bool condition, const char *expectedFormat, const char *actualFormat, ...);
-#define n_test_assert_true(runner, value) n_internal_test_assert_equal(runner, __func__, __LINE__, value, "%s", "%s", "true", "false")
-#define n_test_assert_false(runner, value) n_internal_test_assert_equal(runner, __func__, __LINE__, !value, "%s", "%s", "false", "true")
-#define n_test_assert_int32_equal(runner, expected, actual) n_internal_test_assert_equal(runner, __func__, __LINE__, actual == expected, "%d", "%d", expected, actual)
-#define n_test_assert_int32_greater(runner, a, b) n_internal_test_assert_equal(runner, __func__, __LINE__, a > b, "> %d", "%d", b, a)
-#define n_test_assert_int32_lower(runner, a, b) n_internal_test_assert_equal(runner, __func__, __LINE__, a < b, "< %d", "%d", b, a)
+void i_n_test_assert(const char *testName, int32_t testLine, bool condition, const char *format1, const char *format2, ...);
+
+#define n_test_assert_true(value) i_n_test_assert(__func__, __LINE__, value, "%s", "%s", "true", "false")
+#define n_test_assert_false(value) i_n_test_assert(__func__, __LINE__, !value, "%s", "%s", "false", "true")
+
+#define i_n_assert_compare(exp, act, condition, format1, format2) i_n_test_assert(__func__, __LINE__, act condition exp, format1, format2, exp, act)
+#define n_assert_size_eq(exp, act)      i_n_assert_compare(exp, act, ==,  "%z",  "%z")
+#define n_assert_size_greater(exp, act) i_n_assert_compare(exp, act, >, "> %z",  "%z")
+#define n_assert_size_lower(exp, act)   i_n_assert_compare(exp, act, <, "< %z",  "%z")
+
+#define n_assert_i32_eq(exp, act)       i_n_assert_compare(exp, act, ==,  "%i",  "%i")
+#define n_assert_i32_greater(exp, act)  i_n_assert_compare(exp, act, >, "> %i",  "%i")
+#define n_assert_i32_lower(exp, act)    i_n_assert_compare(exp, act, <, "< %i",  "%i")
+
+#define n_assert_u32_eq(exp, act)       i_n_assert_compare(exp, act, ==,  "%u",  "%u")
+#define n_assert_u32_greater(exp, act)  i_n_assert_compare(exp, act, >, "> %u",  "%u")
+#define n_assert_u32_lower(exp, act)    i_n_assert_compare(exp, act, <, "< %u",  "%u")
+
+#define n_assert_i64_eq(exp, act)       i_n_assert_compare(exp, act, ==,  "%li", "%li")
+#define n_assert_i64_greater(exp, act)  i_n_assert_compare(exp, act, >, "> %li", "%li")
+#define n_assert_i64_lower(exp, act)    i_n_assert_compare(exp, act, <, "< %li", "%li")
+
+#define n_assert_u64_eq(exp, act)       i_n_assert_compare(exp, act, ==,  "%lu", "%lu")
+#define n_assert_u64_greater(exp, act)  i_n_assert_compare(exp, act, >, "> %lu", "%lu")
+#define n_assert_u64_lower(exp, act)    i_n_assert_compare(exp, act, <, "< %lu", "%lu")
 
 // Context
-#ifndef NANDI_INTERNAL
-typedef void *NContext;
-#endif
+typedef struct {
+    int a;
+} *NContext;
 
-extern NContext n_context_create();
+extern NContext n_context_create(void);
 extern void n_context_destroy(NContext context);
 
 #endif

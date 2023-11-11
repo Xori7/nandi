@@ -1,12 +1,11 @@
 #ifdef _WINDOWS
 
-#include "../nandi_internal.h"
-#include <malloc.h>
+#include "nandi.h"
 #include <stdio.h>
 #include <windows.h>
 
 extern NLogger n_logger_create(NLoggerMode mode, char *filePath) {
-    NLogger logger = malloc(sizeof *logger);
+    NLogger logger = n_memory_alloc(sizeof *logger);
     logger->mode = mode;
     logger->filePath = filePath;
     logger->logMutex = n_threading_mutex_create();
@@ -20,7 +19,7 @@ extern NLogger n_logger_create(NLoggerMode mode, char *filePath) {
 }
 
 extern void n_logger_destroy(NLogger logger) {
-    free(logger);
+    n_memory_free(logger);
 }
 
 extern void n_logger_log(NLogger logger, NLogLevel level, char *message) {
@@ -44,14 +43,16 @@ extern void n_logger_log(NLogger logger, NLogLevel level, char *message) {
         fclose(file);
     }
     n_threading_mutex_release(logger->logMutex);
-    free(resultingText);
+    n_memory_free(resultingText);
 }
 
 extern void n_logger_log_format(NLogger logger, NLogLevel level, const char *format, ...) {
     va_list args;
-            va_start(args, format);
-    n_logger_log(logger, level, n_internal_cstring_format_args(format, args));
-            va_end(args);
+    va_start(args, format);
+    char *message = n_internal_cstring_format_args(format, args);
+    n_logger_log(logger, level, message);
+    va_end(args);
+    n_memory_free(message);
 }
 
 #endif

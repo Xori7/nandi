@@ -1,11 +1,10 @@
-#include <malloc.h>
-#include "nandi_internal.h"
+#include "nandi.h"
 
 extern NContext n_context_create(void) {
-    NContext context = malloc(sizeof *context);
+    NContext context = n_memory_alloc(sizeof *context);
     return context;
 }
 
 extern void n_context_destroy(NContext context) {
-    free(context);
+    n_memory_free(context);
 }
