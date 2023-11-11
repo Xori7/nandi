@@ -1,8 +1,5 @@
-#include <malloc.h>
 #include "../nandi.h"
-
-NMutex mutex = NULL;
-bool isLogging = false;
+#include <malloc.h>
 
 typedef struct {
     void *pointer;
@@ -12,6 +9,8 @@ typedef struct {
     int32_t line;
 } Memory;
 
+NMutex mutex = NULL;
+bool isLogging = false;
 NList memoryList = {0};
 
 void *n_memory_alloc_debug(size_t size, const char *function, int32_t line) {
@@ -72,5 +71,6 @@ void n_memory_summary(NLogger logger) {
         }
         isLogging = false;
     }
+    n_list_destroy(memoryList);
     n_threading_mutex_release(mutex);
 }
