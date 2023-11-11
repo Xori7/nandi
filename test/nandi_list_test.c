@@ -34,7 +34,7 @@ void test_n_list_get_returns_added_values() {
 
 void test_n_list_add_more_elements_than_capacity_doubles_capacity() {
     const char *value = "Life is just a sinusoidal fractal...";
-    NList list = n_list_create(sizeof(const char*), 1);
+    NList list = n_list_create(sizeof(const char *), 1);
     n_list_add_inline(&list, const char*, "it really is...");
     n_assert_u64_eq(1, list.capacity);
     n_list_add(&list, &value);
@@ -81,6 +81,47 @@ void test_n_list_remove_at_decrements_count() {
     n_list_destroy(list);
 }
 
+void test_n_list_remove_returns_true_when_element_exists_and_false_when_it_does_not() {
+    NList list = n_list_create(sizeof(uint32_t), 4);
+    n_list_add_inline(&list, uint32_t, 15);
+    n_list_add_inline(&list, uint32_t, 4);
+    n_list_add_inline(&list, uint32_t, 30);
+    n_list_add_inline(&list, uint32_t, 123121);
+    uint32_t value = 3;
+    n_test_assert_false(n_list_remove(&list, &value));
+    value = 30;
+    n_test_assert_true(n_list_remove(&list, &value));
+    n_list_destroy(list);
+}
+
+void test_n_list_remove_shifts_subsequent_elements_back() {
+    NList list = n_list_create(sizeof(uint32_t), 0);
+    n_list_add_inline(&list, uint32_t, 15);
+    n_list_add_inline(&list, uint32_t, 4);
+    n_list_add_inline(&list, uint32_t, 30);
+    n_list_add_inline(&list, uint32_t, 123121);
+    uint32_t value = 4;
+    n_list_remove(&list, &value);
+    n_assert_u32_eq(15, n_list_get_inline(list, 0, uint32_t));
+    n_assert_u32_eq(30, n_list_get_inline(list, 1, uint32_t));
+    n_assert_u32_eq(123121, n_list_get_inline(list, 2, uint32_t));
+
+    n_list_destroy(list);
+}
+
+void test_n_list_remove_decrements_count() {
+    NList list = n_list_create(sizeof(uint32_t), 2);
+    n_list_add_inline(&list, uint32_t, 15);
+    n_list_add_inline(&list, uint32_t, 4);
+    uint32_t value = 15;
+    n_list_remove(&list, &value);
+    n_assert_u64_eq(1, list.count);
+    value = 4;
+    n_list_remove(&list, &value);
+    n_assert_u64_eq(0, list.count);
+    n_list_destroy(list);
+}
+
 void test_n_list_clear_sets_count_to_zero() {
     NList list = n_list_create(sizeof(uint32_t), 2);
     n_list_add_inline(&list, uint32_t, 15);
@@ -106,7 +147,7 @@ void test_n_list_contains_returns_true_when_value_was_added_to_list() {
 }
 
 void test_n_list_index_of_returns_index_of_passed_element() {
-    NList list = n_list_create(sizeof(char*), 4);
+    NList list = n_list_create(sizeof(char *), 4);
     char *text = "He just don't sleep :o";
     n_list_add_inline(&list, char*, "I don't know why");
     n_list_add_inline(&list, char*, "Or do I?");
@@ -127,6 +168,9 @@ void test_n_list() {
     test_n_list_set_correctly_changes_value();
     test_n_list_remove_at_shifts_subsequent_elements_back();
     test_n_list_remove_at_decrements_count();
+    test_n_list_remove_returns_true_when_element_exists_and_false_when_it_does_not();
+    test_n_list_remove_shifts_subsequent_elements_back();
+    test_n_list_remove_decrements_count();
     test_n_list_clear_sets_count_to_zero();
     test_n_list_contains_returns_true_when_value_was_added_to_list();
     test_n_list_index_of_returns_index_of_passed_element();

@@ -42,17 +42,6 @@ extern void n_list_get(NList list, uint64_t index, void *destination) {
     memcpy(destination, list.elements + list.typeSize * index, list.typeSize);
 }
 
-extern void n_list_remove_at(NList *list, uint64_t index) {
-    memmove(list->elements + (list->typeSize * index),
-            list->elements + (list->typeSize * (index + 1)),
-            list->typeSize * (list->count - (index + 1)));
-    list->count--;
-}
-
-extern void n_list_clear(NList *list) {
-    list->count = 0;
-}
-
 extern uint64_t n_list_index_of(NList list, void *value) {
     uint8_t *element = list.elements;
     for (element; element < list.elements + (list.typeSize * list.count); element += list.typeSize) {
@@ -61,6 +50,25 @@ extern uint64_t n_list_index_of(NList list, void *value) {
         }
     }
     return UINT64_MAX;
+}
+
+extern void n_list_remove_at(NList *list, uint64_t index) {
+    memmove(list->elements + (list->typeSize * index),
+            list->elements + (list->typeSize * (index + 1)),
+            list->typeSize * (list->count - (index + 1)));
+    list->count--;
+}
+
+extern bool n_list_remove(NList *list, void *value) {
+    uint64_t index = n_list_index_of(*list, value);
+    if (index == UINT64_MAX)
+        return false;
+    n_list_remove_at(list, index);
+    return true;
+}
+
+extern void n_list_clear(NList *list) {
+    list->count = 0;
 }
 
 extern bool n_list_contains(NList list, void *value) {
