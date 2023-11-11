@@ -111,7 +111,7 @@ void *i_n_list_get(NList list, uint64_t index);
 
 #define n_list_add_inline(list, Type, value) { Type i_var = value; n_list_add(list, &i_var); }
 #define n_list_set_inline(list, index, Type, value) { Type i_var = value; n_list_set(list, index, &i_var); }
-#define n_list_get_inline(list, index, Type) *((Type*)i_n_list_get(list, index))
+#define n_list_get_inline(list, index, Type) (*((Type*)i_n_list_get(list, index)))
 
 // Test
 typedef struct {
