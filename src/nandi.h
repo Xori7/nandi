@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <malloc.h>
+#include <stdatomic.h>
 
 // CString
 char *n_internal_cstring_format_args(const char *format, va_list args);
@@ -116,8 +117,8 @@ void *i_n_list_get(NList list, uint64_t index);
 // Test
 typedef struct {
     NLogger logger;
-    volatile uint32_t passedTestCount;
-    volatile uint32_t allTestCount;
+    atomic_int passedTestCount;
+    atomic_int allTestCount;
 } *NTestRunner;
 
 extern void n_test_runner_start(NLogger logger);
@@ -149,12 +150,11 @@ void i_n_test_assert(const char *testName, int32_t testLine, bool condition, con
 #define n_assert_u64_greater(exp, act)  i_n_assert_compare(exp, act, >, "> %lu", "%lu")
 #define n_assert_u64_lower(exp, act)    i_n_assert_compare(exp, act, <, "< %lu", "%lu")
 
-// Context
+// Window
 typedef struct {
-    int a;
-} *NContext;
+    const char *title;
+} NWindow;
 
-extern NContext n_context_create(void);
-extern void n_context_destroy(NContext context);
+extern NWindow n_window_create(const char *title);
 
 #endif
