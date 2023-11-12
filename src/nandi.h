@@ -152,6 +152,7 @@ void i_n_test_assert(const char *testName, int32_t testLine, bool condition, con
 
 // Window
 typedef struct {
+    const void *handle;
     const char *title;
 } NWindow;
 
