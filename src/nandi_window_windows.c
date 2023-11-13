@@ -7,6 +7,8 @@ void update_client_rect(NWindow window) {
     GetClientRect((HWND)window->handle, &rect);
     window->size.x = rect.right - rect.left;
     window->size.y = rect.bottom - rect.top;
+    if (window->onSizeChangedFunc != NULL)
+        (window->onSizeChangedFunc)(window);
 }
 
 LRESULT WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
@@ -22,7 +24,7 @@ LRESULT WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam, UINT
     return DefWindowProc(window, message, wparam, lparam);
 }
 
-extern NWindow n_window_create(const char *title) {
+extern NWindow n_window_create(const char *title, window_size_changed_func onSizeChangedFunc) {
     WNDCLASS windowClass = {
             .lpszClassName = title,
             .hInstance = GetModuleHandle(NULL),
@@ -31,8 +33,9 @@ extern NWindow n_window_create(const char *title) {
     RegisterClass(&windowClass);
     HWND windowHandle = CreateWindow(title, title, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, windowClass.hInstance, 0);
     NWindow window = n_memory_alloc(sizeof *window);
-    window->title = title;
     window->handle = windowHandle;
+    window->title = title;
+    window->onSizeChangedFunc = onSizeChangedFunc;
     update_client_rect(window);
 
     SetWindowSubclass((HWND)window->handle, WindowProc, 0, (DWORD_PTR)window);
@@ -41,5 +44,19 @@ extern NWindow n_window_create(const char *title) {
 }
 
 extern void n_window_destroy(NWindow window) {
+    DestroyWindow((HWND)window->handle);
     n_memory_free(window);
+}
+
+extern void n_window_set_client_size(NWindow window, NVec2i32 size) {
+    RECT rect = {
+            .left = 0,
+            .top = 0,
+            .right = size.x,
+            .bottom = size.y
+    };
+    if (!AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, false))
+        RaiseException(GetLastError(), 0, 0, 0);
+    SetWindowPos((HWND)window->handle, NULL, 0, 0, rect.right - rect.left, rect.bottom - rect.top, SWP_NOMOVE);
+    UpdateWindow((HWND)window->handle);
 }

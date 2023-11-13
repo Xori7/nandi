@@ -208,13 +208,18 @@ typedef union {
 extern void n_input_update();
 
 // Window
-typedef struct {
+typedef struct i_NWindow *NWindow;
+typedef void (*window_size_changed_func)(NWindow window);
+
+struct i_NWindow {
     const void *handle;
     const char *title;
-    NVec2u32 size;
-} *NWindow;
+    NVec2i32 size;
+    window_size_changed_func onSizeChangedFunc;
+};
 
-extern NWindow n_window_create(const char *title);
+extern NWindow n_window_create(const char *title, window_size_changed_func onSizeChangedFunc);
 extern void n_window_destroy(NWindow window);
+extern void n_window_set_client_size(NWindow window, NVec2i32 size);
 
 #endif
