@@ -150,6 +150,44 @@ void i_n_test_assert(const char *testName, int32_t testLine, bool condition, con
 #define n_assert_u64_greater(exp, act)  i_n_assert_compare(exp, act, >, "> %lu", "%lu")
 #define n_assert_u64_lower(exp, act)    i_n_assert_compare(exp, act, <, "< %lu", "%lu")
 
+//Vectors
+typedef struct {
+    int32_t x, y;
+} NVec2i32;
+typedef struct {
+    int64_t x, y;
+} NVec2i64;
+typedef struct {
+    float x, y;
+} NVec2f32;
+typedef struct {
+    double x, y;
+} NVec2f64;
+typedef struct {
+    int32_t x, y, z;
+} NVec3i32;
+typedef struct {
+    int64_t x, y, z;
+} NVec3i64;
+typedef struct {
+    float x, y, z;
+} NVec3f32;
+typedef struct {
+    double x, y, z;
+} NVec3f64;
+
+typedef union {
+    NVec2i32 v2i32;
+    NVec2f32 v2f32;
+    NVec2i64 v2i64;
+    NVec2f64 v2f64;
+
+    NVec3i32 v3i32;
+    NVec3f32 v3f32;
+    NVec3i64 v3i64;
+    NVec3f64 v3f64;
+} NVecAnything;
+
 // Window
 typedef struct {
     const void *handle;
