@@ -158,6 +158,12 @@ typedef struct {
     int64_t x, y;
 } NVec2i64;
 typedef struct {
+    uint32_t x, y;
+} NVec2u32;
+typedef struct {
+    uint64_t x, y;
+} NVec2u64;
+typedef struct {
     float x, y;
 } NVec2f32;
 typedef struct {
@@ -170,6 +176,12 @@ typedef struct {
     int64_t x, y, z;
 } NVec3i64;
 typedef struct {
+    uint32_t x, y, z;
+} NVec3u32;
+typedef struct {
+    uint64_t x, y, z;
+} NVec3u64;
+typedef struct {
     float x, y, z;
 } NVec3f32;
 typedef struct {
@@ -178,13 +190,17 @@ typedef struct {
 
 typedef union {
     NVec2i32 v2i32;
-    NVec2f32 v2f32;
     NVec2i64 v2i64;
+    NVec2u32 v2u32;
+    NVec2u64 v2u64;
+    NVec2f32 v2f32;
     NVec2f64 v2f64;
 
     NVec3i32 v3i32;
-    NVec3f32 v3f32;
     NVec3i64 v3i64;
+    NVec3u32 v3u32;
+    NVec3u64 v3u64;
+    NVec3f32 v3f32;
     NVec3f64 v3f64;
 } NVecAnything;
 
@@ -192,6 +208,8 @@ typedef union {
 typedef struct {
     const void *handle;
     const char *title;
+    NVec2u32 size;
+    NVec2u32 position;
 } NWindow;
 
 extern NWindow n_window_create(const char *title);
