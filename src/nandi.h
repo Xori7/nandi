@@ -204,14 +204,17 @@ typedef union {
     NVec3f64 v3f64;
 } NVecAnything;
 
+// Input
+extern void n_input_update();
+
 // Window
 typedef struct {
     const void *handle;
     const char *title;
     NVec2u32 size;
-    NVec2u32 position;
-} NWindow;
+} *NWindow;
 
 extern NWindow n_window_create(const char *title);
+extern void n_window_destroy(NWindow window);
 
 #endif
