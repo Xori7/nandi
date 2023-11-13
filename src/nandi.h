@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <malloc.h>
+#include <stdatomic.h>
 
 // CString
 char *n_internal_cstring_format_args(const char *format, va_list args);
@@ -116,8 +117,8 @@ void *i_n_list_get(NList list, uint64_t index);
 // Test
 typedef struct {
     NLogger logger;
-    volatile uint32_t passedTestCount;
-    volatile uint32_t allTestCount;
+    atomic_int passedTestCount;
+    atomic_int allTestCount;
 } *NTestRunner;
 
 extern void n_test_runner_start(NLogger logger);
@@ -149,12 +150,76 @@ void i_n_test_assert(const char *testName, int32_t testLine, bool condition, con
 #define n_assert_u64_greater(exp, act)  i_n_assert_compare(exp, act, >, "> %lu", "%lu")
 #define n_assert_u64_lower(exp, act)    i_n_assert_compare(exp, act, <, "< %lu", "%lu")
 
-// Context
+//Vectors
 typedef struct {
-    int a;
-} *NContext;
+    int32_t x, y;
+} NVec2i32;
+typedef struct {
+    int64_t x, y;
+} NVec2i64;
+typedef struct {
+    uint32_t x, y;
+} NVec2u32;
+typedef struct {
+    uint64_t x, y;
+} NVec2u64;
+typedef struct {
+    float x, y;
+} NVec2f32;
+typedef struct {
+    double x, y;
+} NVec2f64;
+typedef struct {
+    int32_t x, y, z;
+} NVec3i32;
+typedef struct {
+    int64_t x, y, z;
+} NVec3i64;
+typedef struct {
+    uint32_t x, y, z;
+} NVec3u32;
+typedef struct {
+    uint64_t x, y, z;
+} NVec3u64;
+typedef struct {
+    float x, y, z;
+} NVec3f32;
+typedef struct {
+    double x, y, z;
+} NVec3f64;
 
-extern NContext n_context_create(void);
-extern void n_context_destroy(NContext context);
+typedef union {
+    NVec2i32 v2i32;
+    NVec2i64 v2i64;
+    NVec2u32 v2u32;
+    NVec2u64 v2u64;
+    NVec2f32 v2f32;
+    NVec2f64 v2f64;
+
+    NVec3i32 v3i32;
+    NVec3i64 v3i64;
+    NVec3u32 v3u32;
+    NVec3u64 v3u64;
+    NVec3f32 v3f32;
+    NVec3f64 v3f64;
+} NVecAnything;
+
+// Input
+extern void n_input_update();
+
+// Window
+typedef struct i_NWindow *NWindow;
+typedef void (*window_size_changed_func)(NWindow window);
+
+struct i_NWindow {
+    const void *handle;
+    const char *title;
+    NVec2i32 size;
+    window_size_changed_func onSizeChangedFunc;
+};
+
+extern NWindow n_window_create(const char *title, window_size_changed_func onSizeChangedFunc);
+extern void n_window_destroy(NWindow window);
+extern void n_window_set_client_size(NWindow window, NVec2i32 size);
 
 #endif

@@ -6,7 +6,7 @@ int main() {
     n_test_runner_start(logger);
 
     test_n_list();
-    test_n_context();
+    test_n_window();
 
     n_test_runner_finish();
     n_logger_destroy(logger);

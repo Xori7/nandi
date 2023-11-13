@@ -5,7 +5,6 @@
 NLogger logger;
 
 void test_n_list();
-void test_n_context();
-
+void test_n_window();
 
 #endif
