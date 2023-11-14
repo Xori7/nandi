@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <malloc.h>
 #include <stdatomic.h>
+#include <string.h>
 
 // CString
 char *n_internal_cstring_format_args(const char *format, va_list args);
