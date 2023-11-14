@@ -205,15 +205,7 @@ typedef union {
 } NVecAnything;
 
 // Input
-enum NInputMessageType : uint8_t {
-    N_KEY_DOWN,
-    N_KEY_UP,
-    N_CURSOR_MOVE,
-    N_MOUSE_BUTTON_DOWN,
-    N_MOUSE_BUTTON_UP,
-    N_MOUSE_WHEEL
-};
-enum NKeyCode : uint8_t {
+typedef enum {
     NKEYCODE_LeftMouseBtn = 0x01, //Left mouse button
     NKEYCODE_RightMouseBtn = 0x02, //Right mouse button
     NKEYCODE_CtrlBrkPrcs = 0x03, //Control-break processing
@@ -470,9 +462,14 @@ enum NKeyCode : uint8_t {
     NKEYCODE_ProcessKey = 0xE5, //Process key input method
     NKEYCODE_OEMCLEAR = 0xE6, //OEM specific
     NKEYCODE_Packet = 0xE7, //IDK man try to google it
-};
+} NKeyCode;
 
 extern void n_input_update();
+extern bool n_input_key(NKeyCode keyCode);
+extern bool n_input_key_down(NKeyCode keyCode);
+extern bool n_input_key_up(NKeyCode keyCode);
+extern NVec2u32 n_input_cursor_position();
+extern int32_t n_input_mouse_wheel();
 
 // Window
 typedef struct i_NWindow *NWindow;
