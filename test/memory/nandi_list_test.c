@@ -9,6 +9,19 @@ void test_n_list_create_with_correct_values(size_t typeSize, uint64_t capacity) 
     n_list_destroy(list);
 }
 
+void test_n_list_create_filled_with_correct_values(size_t typeSize, uint64_t count) {
+    NList list = n_list_create_filled(typeSize, count);
+    n_assert_u64_eq(count, list.count);
+    n_assert_u64_eq(count, list.capacity);
+    n_assert_size_eq(typeSize, list.typeSize);
+    n_test_assert_true(list.elements);
+    void *zeroBuffer = n_memory_alloc(typeSize * count);
+    memset(zeroBuffer, 0, typeSize * count);
+    n_test_assert_false(memcmp(list.elements, zeroBuffer, typeSize * count));
+    n_memory_free(zeroBuffer);
+    n_list_destroy(list);
+}
+
 void test_n_list_add_increments_count() {
     NList list = n_list_create(sizeof(int32_t), 10);
     int32_t value = 12;
@@ -162,6 +175,8 @@ void test_n_list_index_of_returns_index_of_passed_element() {
 void test_n_list() {
     test_n_list_create_with_correct_values(sizeof(int32_t), 10);
     test_n_list_create_with_correct_values(sizeof(int64_t), 420);
+    test_n_list_create_filled_with_correct_values(sizeof(int32_t), 10);
+    test_n_list_create_filled_with_correct_values(sizeof(int64_t), 420);
     test_n_list_add_increments_count();
     test_n_list_get_returns_added_values();
     test_n_list_add_more_elements_than_capacity_doubles_capacity();
