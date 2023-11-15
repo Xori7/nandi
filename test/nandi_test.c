@@ -23,14 +23,14 @@ int main() {
     }
     uint32_t count = 0;
     vkEnumeratePhysicalDevices(instance, &count, NULL);
-    VkPhysicalDevice *devices = n_memory_alloc(count * sizeof(VkPhysicalDevice));
-    vkEnumeratePhysicalDevices(instance, &count, devices);
+    NList devices = n_list_create_filled(sizeof(VkPhysicalDevice), count);
+    vkEnumeratePhysicalDevices(instance, &count, (VkPhysicalDevice *)devices.elements);
     for (int i = 0; i < count; ++i) {
         VkPhysicalDeviceProperties properties;
-        vkGetPhysicalDeviceProperties(devices[i], &properties);
+        vkGetPhysicalDeviceProperties(n_list_get_inline(devices, i, VkPhysicalDevice), &properties);
         n_logger_log_format(logger, LOGLEVEL_INFO, "PhysicalDevice[%i]: %s", i, properties.deviceName);
     }
-    n_memory_free(devices);
+    n_list_destroy(devices);
 
     test_n_list();
     test_n_window();

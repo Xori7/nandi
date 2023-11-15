@@ -11,6 +11,17 @@ extern NList n_list_create(size_t typeSize, uint64_t capacity) {
     return list;
 }
 
+extern NList n_list_create_filled(size_t typeSize, uint64_t count) {
+    NList list = {
+            .elements = n_memory_alloc(typeSize * count),
+            .count = count,
+            .typeSize = typeSize,
+            .capacity = count
+    };
+    memset(list.elements, 0, typeSize * count);
+    return list;
+}
+
 extern void n_list_destroy(NList list) {
     n_memory_free(list.elements);
 }

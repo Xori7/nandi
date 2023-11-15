@@ -97,8 +97,8 @@ typedef struct {
     size_t typeSize;
 } NList;
 
-
 extern NList n_list_create(size_t typeSize, uint64_t capacity);
+extern NList n_list_create_filled(size_t typeSize, uint64_t count); //Creates regular list filled with 0-value elements. Essentially this function creates an array of length count.
 extern void n_list_destroy(NList list);
 extern void n_list_add(NList *list, void* value);
 extern void n_list_set(NList *list, uint64_t index, void *value);
@@ -108,7 +108,6 @@ extern void n_list_remove_at(NList *list, uint64_t index);
 extern bool n_list_remove(NList *list, void *value);
 extern void n_list_clear(NList *list);
 extern bool n_list_contains(NList list, void *value);
-
 void *i_n_list_get(NList list, uint64_t index);
 
 #define n_list_add_inline(list, Type, value) { Type i_var = value; n_list_add(list, &i_var); }
