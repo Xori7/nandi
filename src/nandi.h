@@ -204,6 +204,9 @@ typedef union {
     NVec3f64 v3f64;
 } NVecAnything;
 
+// Math
+uint32_t n_math_clamp(uint32_t value, uint32_t min, uint32_t max);
+
 // Input
 typedef enum {
     NKEYCODE_LeftMouseBtn = 0x01, //Left mouse button
@@ -493,11 +496,19 @@ typedef struct {
     NLogger logger;
     VkInstance instance;
     VkSurfaceKHR surface;
+
     VkQueue presentQueue;
     VkQueue graphicsQueue;
+
     NList physicalDevices;
     VkPhysicalDevice pickedPhysicalDevice;
     VkDevice device;
+
+    VkSwapchainKHR swapChain;
+    NList swapChainImages;
+    NList swapChainImageViews;
+    VkFormat swapChainImageFormat;
+    VkExtent2D swapChainExtent;
 }NGraphicsContext;
 
 extern NGraphicsContext n_graphics_initialize(NLogger logger, NWindow window);
