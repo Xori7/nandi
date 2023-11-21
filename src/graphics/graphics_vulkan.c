@@ -2,6 +2,7 @@
 #define VK_USE_PLATFORM_WIN32_KHR
 #endif
 
+#include <stdio.h>
 #include "../nandi.h"
 
 #ifdef _WINDOWS
@@ -281,6 +282,252 @@ void create_image_views(NGraphicsContext *context) {
     }
 }
 
+char *read_file(const char *path, uint32_t *size) {
+    FILE *shaderStream;
+    if (fopen_s(&shaderStream, path, "rb")) {
+        printf("Failed to open file!");
+        exit(-1);
+    }
+    fseek(shaderStream, 0, SEEK_END);
+    size_t length = ftell(shaderStream);
+    fseek(shaderStream, 0, SEEK_SET);
+    char *shaderCode = (char*)malloc(length);
+    fread(shaderCode, sizeof(char), length, shaderStream);
+    fclose(shaderStream);
+
+    *size = length;
+    return shaderCode;
+}
+
+VkShaderModule create_shader_module(NGraphicsContext *context, char *code, uint32_t size) {
+    VkShaderModuleCreateInfo createInfo = {
+            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+            .codeSize = size,
+            .pCode = (const uint32_t*)code
+    };
+
+    VkShaderModule shaderModule;
+    if (vkCreateShaderModule(context->device, &createInfo, NULL, &shaderModule) != VK_SUCCESS) {
+        n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to create shader module!");
+        exit(-1);
+    }
+    return shaderModule;
+}
+
+void create_render_pass(NGraphicsContext *context) {
+    VkAttachmentDescription colorAttachment = {
+            .format = context->swapChainImageFormat,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+    };
+
+    VkAttachmentReference colorAttachmentRef = {
+            .attachment = 0,
+            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+    };
+
+    VkSubpassDescription subpass = {
+            .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+            .colorAttachmentCount = 1,
+            .pColorAttachments = &colorAttachmentRef
+    };
+
+    VkSubpassDependency dependency = {
+            .srcSubpass = VK_SUBPASS_EXTERNAL,
+            .dstSubpass = 0,
+            .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .srcAccessMask = 0,
+            .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+    };
+
+    VkRenderPassCreateInfo renderPassInfo = {
+            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+            .attachmentCount = 1,
+            .pAttachments = &colorAttachment,
+            .subpassCount = 1,
+            .pSubpasses = &subpass,
+            .dependencyCount = 1,
+            .pDependencies = &dependency
+    };
+
+    if (vkCreateRenderPass(context->device, &renderPassInfo, NULL, &context->renderPass) != VK_SUCCESS) {
+        n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to create render pass!");
+        exit(-1);
+    }
+}
+
+void create_graphics_pipeline(NGraphicsContext *context) {
+    uint32_t vertSize, fragSize;
+
+    char *vertShaderCode = read_file("./shaders/vert.spv", &vertSize);
+    char *fragShaderCode = read_file("./shaders/frag.spv", &fragSize);
+    VkShaderModule vertModule = create_shader_module(context, vertShaderCode, vertSize);
+    VkShaderModule fragModule = create_shader_module(context, fragShaderCode, fragSize);
+
+    VkPipelineShaderStageCreateInfo vertShaderStageInfo = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .stage = VK_SHADER_STAGE_VERTEX_BIT,
+            .module = vertModule,
+            .pName = "main"
+    };
+
+    VkPipelineShaderStageCreateInfo fragShaderStageInfo = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .module = fragModule,
+            .pName = "main"
+    };
+
+    VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+            .vertexBindingDescriptionCount = 0,
+            .pVertexBindingDescriptions = NULL,
+            .vertexAttributeDescriptionCount = 0,
+            .pVertexAttributeDescriptions = NULL
+    };
+
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+            .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+            .primitiveRestartEnable = VK_FALSE
+    };
+
+    VkDynamicState dynamicStates[] = {
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_SCISSOR,
+    };
+
+    VkPipelineDynamicStateCreateInfo dynamicState = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+            .dynamicStateCount = 2,
+            .pDynamicStates = dynamicStates
+    };
+
+    VkPipelineViewportStateCreateInfo viewportState = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+            .viewportCount = 1,
+            .scissorCount = 1
+    };
+
+    VkPipelineRasterizationStateCreateInfo rasterizer = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+            .depthClampEnable = VK_FALSE,
+            .rasterizerDiscardEnable = VK_FALSE,
+            .polygonMode = VK_POLYGON_MODE_FILL,
+            .lineWidth = 1.0f,
+            .cullMode = VK_CULL_MODE_BACK_BIT,
+            .frontFace = VK_FRONT_FACE_CLOCKWISE,
+            .depthBiasEnable = VK_FALSE,
+            .depthBiasConstantFactor = 0.0f,
+            .depthBiasClamp = 0.0f,
+            .depthBiasSlopeFactor = 0.0f
+    };
+
+    VkPipelineMultisampleStateCreateInfo multisampling = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+            .sampleShadingEnable = VK_FALSE,
+            .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+            .minSampleShading = 1.0f,
+            .pSampleMask = NULL,
+            .alphaToCoverageEnable = VK_FALSE,
+            .alphaToOneEnable = VK_FALSE
+    };
+
+    VkPipelineColorBlendAttachmentState colorBlendAttachment = {
+            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+                              VK_COLOR_COMPONENT_A_BIT,
+            .blendEnable = VK_FALSE,
+            .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+            .dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
+            .colorBlendOp = VK_BLEND_OP_ADD,
+            .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+            .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+            .alphaBlendOp = VK_BLEND_OP_ADD
+    };
+
+    VkPipelineColorBlendStateCreateInfo colorBlending = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+            .logicOpEnable = VK_FALSE,
+            .logicOp = VK_LOGIC_OP_COPY,
+            .attachmentCount = 1,
+            .pAttachments = &colorBlendAttachment,
+            .blendConstants[0] = 0.0f,
+            .blendConstants[1] = 0.0f,
+            .blendConstants[2] = 0.0f,
+            .blendConstants[3] = 0.0f,
+    };
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+            .setLayoutCount = 0,
+            .pSetLayouts = NULL,
+            .pushConstantRangeCount = 0,
+            .pPushConstantRanges = NULL
+    };
+
+    if (vkCreatePipelineLayout(context->device, &pipelineLayoutInfo, NULL, &context->pipelineLayout) != VK_SUCCESS) {
+        n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to create pipeline layout!");
+        exit(-1);
+    }
+
+    VkGraphicsPipelineCreateInfo pipelineInfo = {
+            .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+            .stageCount = 2,
+            .pStages = shaderStages,
+            .pVertexInputState = &vertexInputInfo,
+            .pInputAssemblyState = &inputAssembly,
+            .pViewportState = &viewportState,
+            .pRasterizationState = &rasterizer,
+            .pMultisampleState = &multisampling,
+            .pDepthStencilState = NULL,
+            .pColorBlendState = &colorBlending,
+            .pDynamicState = &dynamicState,
+            .layout = context->pipelineLayout,
+            .renderPass = context->renderPass,
+            .subpass = 0,
+            .basePipelineHandle = VK_NULL_HANDLE,
+            .basePipelineIndex = -1
+    };
+
+    if (vkCreateGraphicsPipelines(context->device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &context->graphicsPipeline) != VK_SUCCESS) {
+        n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to create graphics pipeline!");
+        exit(-1);
+    }
+    vkDestroyShaderModule(context->device, vertModule, NULL);
+    vkDestroyShaderModule(context->device, fragModule, NULL);
+}
+
+void create_frame_buffers(NGraphicsContext *context) {
+    context->swapChainFramebuffers = n_list_create_filled(sizeof(VkFramebuffer), context->swapChainImages.count);
+    for (uint32_t i = 0; i < context->swapChainImages.count; i++) {
+        VkImageView attachments[] = {
+                n_list_get_inline(context->swapChainImageViews, i, VkImageView)
+        };
+
+        VkFramebufferCreateInfo framebufferInfo = {
+                .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+                .renderPass = context->renderPass,
+                .attachmentCount = 1,
+                .pAttachments = attachments,
+                .width = context->swapChainExtent.width,
+                .height = context->swapChainExtent.height,
+                .layers = 1
+        };
+
+        if (vkCreateFramebuffer(context->device, &framebufferInfo, NULL, &n_list_get_inline(context->swapChainFramebuffers, i, VkFramebuffer)) != VK_SUCCESS) {
+            n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to create framebuffer!");
+            exit(-1);
+        }
+    }
+}
 
 extern NGraphicsContext n_graphics_initialize(NLogger logger, NWindow window) {
     NGraphicsContext context = {
@@ -293,11 +540,23 @@ extern NGraphicsContext n_graphics_initialize(NLogger logger, NWindow window) {
     create_logical_device(&context);
     create_swap_chain(&context, window);
     create_image_views(&context);
+    create_render_pass(&context);
+    create_graphics_pipeline(&context);
+    create_frame_buffers(&context);
 
     return context;
 }
 
 extern void n_graphics_cleanup(NGraphicsContext *context) {
+    for (uint32_t i = 0; i < context->swapChainFramebuffers.count; ++i) {
+        vkDestroyFramebuffer(context->device, n_list_get_inline(context->swapChainFramebuffers, i, VkFramebuffer), NULL);
+    }
+    n_list_destroy(context->swapChainFramebuffers);
+
+    vkDestroyPipelineLayout(context->device, context->pipelineLayout, NULL);
+    vkDestroyPipeline(context->device, context->graphicsPipeline, NULL);
+    vkDestroyRenderPass(context->device, context->renderPass, NULL);
+
     for (uint32_t i = 0; i < context->swapChainImageViews.count; i++) {
         vkDestroyImageView(context->device, n_list_get_inline(context->swapChainImageViews, i, VkImageView), NULL);
     }

@@ -509,6 +509,12 @@ typedef struct {
     NList swapChainImageViews;
     VkFormat swapChainImageFormat;
     VkExtent2D swapChainExtent;
+
+    VkRenderPass renderPass;
+    VkPipelineLayout pipelineLayout;
+    VkPipeline graphicsPipeline;
+
+    NList swapChainFramebuffers;
 }NGraphicsContext;
 
 extern NGraphicsContext n_graphics_initialize(NLogger logger, NWindow window);
