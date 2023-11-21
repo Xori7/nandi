@@ -6,5 +6,6 @@ NLogger logger;
 
 void test_n_list();
 void test_n_window();
+void test_n_vk_graphics();
 
 #endif

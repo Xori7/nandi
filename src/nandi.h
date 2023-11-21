@@ -486,4 +486,20 @@ extern NWindow n_window_create(const char *title, window_size_changed_func onSiz
 extern void n_window_destroy(NWindow window);
 extern void n_window_set_client_size(NWindow window, NVec2i32 size);
 
+//Graphics
+#include "vulkan/vulkan.h"
+
+typedef struct {
+    NLogger logger;
+    VkInstance instance;
+    VkSurfaceKHR surface;
+    VkQueue presentQueue;
+    VkQueue graphicsQueue;
+    NList physicalDevices;
+    VkPhysicalDevice pickedPhysicalDevice;
+    VkDevice device;
+}NGraphicsContext;
+
+extern NGraphicsContext n_graphics_initialize(NLogger logger, NWindow window);
+extern void n_graphics_cleanup(NGraphicsContext *context);
 #endif
