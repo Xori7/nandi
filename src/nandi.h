@@ -515,6 +515,13 @@ typedef struct {
     VkPipeline graphicsPipeline;
 
     NList swapChainFramebuffers;
+
+    VkCommandPool commandPool;
+    VkCommandBuffer commandBuffer;
+
+    VkSemaphore imageAvailableSemaphore;
+    VkSemaphore renderFinishedSemaphore;
+    VkFence inFlightFence;
 }NGraphicsContext;
 
 extern NGraphicsContext n_graphics_initialize(NLogger logger, NWindow window);

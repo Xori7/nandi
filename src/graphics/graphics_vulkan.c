@@ -299,7 +299,7 @@ char *read_file(const char *path, uint32_t *size) {
     return shaderCode;
 }
 
-VkShaderModule create_shader_module(NGraphicsContext *context, char *code, uint32_t size) {
+VkShaderModule create_shader_module(NGraphicsContext *context, const char *code, uint32_t size) {
     VkShaderModuleCreateInfo createInfo = {
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
             .codeSize = size,
@@ -529,6 +529,187 @@ void create_frame_buffers(NGraphicsContext *context) {
     }
 }
 
+void create_command_pool(NGraphicsContext *context) {
+    QueueFamilyIndices queueFamilyIndices = find_queue_families(context);
+
+    VkCommandPoolCreateInfo poolInfo = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+            .queueFamilyIndex = queueFamilyIndices.graphicsFamily
+    };
+
+    if (vkCreateCommandPool(context->device, &poolInfo, NULL, &context->commandPool) != VK_SUCCESS) {
+        n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to create command pool!");
+        exit(-1);
+    }
+}
+
+void create_command_buffer(NGraphicsContext *context) {
+    VkCommandBufferAllocateInfo allocInfo = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .commandPool = context->commandPool,
+            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            .commandBufferCount = 1
+    };
+
+    if (vkAllocateCommandBuffers(context->device, &allocInfo, &context->commandBuffer) != VK_SUCCESS) {
+        n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to allocate command buffer!");
+        exit(-1);
+    }
+}
+
+void record_command_buffer(NGraphicsContext *context, uint32_t imageIndex) {
+    VkCommandBufferBeginInfo beginInfo = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            .flags = 0,
+            .pInheritanceInfo = NULL
+    };
+
+    if (vkBeginCommandBuffer(context->commandBuffer, &beginInfo) != VK_SUCCESS) {
+        printf("Failed to begin recording command buffer");
+    }
+
+    VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+    VkRenderPassBeginInfo renderPassBeginInfo = {
+            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+            .renderPass = context->renderPass,
+            .framebuffer = n_list_get_inline(context->swapChainFramebuffers, imageIndex, VkFramebuffer),
+            .renderArea.offset = {0, 0},
+            .renderArea.extent = context->swapChainExtent,
+            .clearValueCount = 1,
+            .pClearValues = &clearColor
+    };
+
+    vkCmdBeginRenderPass(context->commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBindPipeline(context->commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->graphicsPipeline);
+
+    VkViewport viewport = {
+            .x = 0.0f,
+            .y = 0.0f,
+            .width = (float) context->swapChainExtent.width,
+            .height = (float) context->swapChainExtent.height,
+            .minDepth = 0.0f,
+            .maxDepth = 1.0f
+    };
+    vkCmdSetViewport(context->commandBuffer, 0, 1, &viewport);
+
+    VkRect2D scissor = {
+            .offset = {0, 0},
+            .extent = context->swapChainExtent
+    };
+    vkCmdSetScissor(context->commandBuffer, 0, 1, &scissor);
+    vkCmdDraw(context->commandBuffer, 3, 1, 0, 0);
+    vkCmdEndRenderPass(context->commandBuffer);
+
+    if (vkEndCommandBuffer(context->commandBuffer) != VK_SUCCESS) {
+        n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to record command buffer!");
+        exit(-1);
+    }
+}
+
+void create_sync_objects(NGraphicsContext *context) {
+    VkSemaphoreCreateInfo semaphoreInfo = {
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+    };
+    VkFenceCreateInfo fenceInfo = {
+            .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+            .flags = VK_FENCE_CREATE_SIGNALED_BIT
+    };
+
+    if (vkCreateSemaphore(context->device, &semaphoreInfo, NULL, &context->imageAvailableSemaphore) != VK_SUCCESS ||
+        vkCreateSemaphore(context->device, &semaphoreInfo, NULL, &context->renderFinishedSemaphore) != VK_SUCCESS ||
+        vkCreateFence(context->device, &fenceInfo, NULL, &context->inFlightFence) != VK_SUCCESS) {
+        n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to create sync objects!");
+        exit(-1);
+    }
+}
+
+void draw_frame(NGraphicsContext *context) {
+    vkWaitForFences(context->device, 1, &context->inFlightFence, VK_TRUE, UINT64_MAX);
+    vkResetFences(context->device, 1, &context->inFlightFence);
+
+    uint32_t imageIndex;
+    vkAcquireNextImageKHR(context->device, context->swapChain, UINT64_MAX, context->imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+    vkResetCommandBuffer(context->commandBuffer, 0);
+    record_command_buffer(context, imageIndex);
+
+    VkSubmitInfo submitInfo = {
+            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO
+    };
+
+    VkSemaphore waitSemaphores[] = {context->imageAvailableSemaphore};
+    VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+    submitInfo.waitSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores = waitSemaphores;
+    submitInfo.pWaitDstStageMask = waitStages;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &context->commandBuffer;
+
+    VkSemaphore signalSemaphores[] = {context->renderFinishedSemaphore};
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = signalSemaphores;
+
+    if (vkQueueSubmit(context->graphicsQueue, 1, &submitInfo, context->inFlightFence) != VK_SUCCESS) {
+        n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to allocate command buffer!");
+        exit(-1);
+    }
+
+    VkSwapchainKHR swapChains[] = {context->swapChain};
+    VkPresentInfoKHR presentInfo = {
+            .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+            .waitSemaphoreCount = 1,
+            .pWaitSemaphores = signalSemaphores,
+            .swapchainCount = 1,
+            .pSwapchains = swapChains,
+            .pImageIndices = &imageIndex,
+            .pResults = NULL
+    };
+
+    vkQueuePresentKHR(context->presentQueue, &presentInfo);
+}
+
+void cleanup_swap_chain(NGraphicsContext *context) {
+    for (uint32_t i = 0; i < context->swapChainFramebuffers.count; ++i) {
+        vkDestroyFramebuffer(context->device, n_list_get_inline(context->swapChainFramebuffers, i, VkFramebuffer), NULL);
+    }
+    n_list_destroy(context->swapChainFramebuffers);
+
+    for (uint32_t i = 0; i < context->swapChainImageViews.count; i++) {
+        vkDestroyImageView(context->device, n_list_get_inline(context->swapChainImageViews, i, VkImageView), NULL);
+    }
+    n_list_destroy(context->swapChainImageViews);
+    n_list_destroy(context->swapChainImages);
+    vkDestroySwapchainKHR(context->device, context->swapChain, NULL);
+}
+
+void recreate_swap_chain(NGraphicsContext *context, NWindow window) {
+    vkDeviceWaitIdle(context->device);
+    cleanup_swap_chain(context);
+
+    create_swap_chain(context, window);
+    create_image_views(context);
+    create_frame_buffers(context);
+}
+
+bool running = true;
+bool windowResized = false;
+void on_window_resized(NWindow window) {
+    windowResized = true;
+}
+
+void main_loop(NGraphicsContext *context, NWindow window) {
+    while (running) {
+        n_input_update();
+        if (n_input_key_down(NKEYCODE_Q))
+            running = false;
+        if (windowResized) {
+            recreate_swap_chain(context, window);
+        }
+        draw_frame(context);
+    }
+    vkDeviceWaitIdle(context->device);
+}
+
 extern NGraphicsContext n_graphics_initialize(NLogger logger, NWindow window) {
     NGraphicsContext context = {
             .logger = logger
@@ -544,25 +725,28 @@ extern NGraphicsContext n_graphics_initialize(NLogger logger, NWindow window) {
     create_graphics_pipeline(&context);
     create_frame_buffers(&context);
 
+    create_command_pool(&context);
+    create_command_buffer(&context);
+    create_sync_objects(&context);
+
+    window->onSizeChangedFunc = on_window_resized;
+
+    main_loop(&context, window);
+
     return context;
 }
 
 extern void n_graphics_cleanup(NGraphicsContext *context) {
-    for (uint32_t i = 0; i < context->swapChainFramebuffers.count; ++i) {
-        vkDestroyFramebuffer(context->device, n_list_get_inline(context->swapChainFramebuffers, i, VkFramebuffer), NULL);
-    }
-    n_list_destroy(context->swapChainFramebuffers);
+    cleanup_swap_chain(context);
+
+    vkDestroySemaphore(context->device, context->imageAvailableSemaphore, NULL);
+    vkDestroySemaphore(context->device, context->renderFinishedSemaphore, NULL);
+    vkDestroyFence(context->device, context->inFlightFence, NULL);
+    vkDestroyCommandPool(context->device, context->commandPool, NULL);
 
     vkDestroyPipelineLayout(context->device, context->pipelineLayout, NULL);
     vkDestroyPipeline(context->device, context->graphicsPipeline, NULL);
     vkDestroyRenderPass(context->device, context->renderPass, NULL);
-
-    for (uint32_t i = 0; i < context->swapChainImageViews.count; i++) {
-        vkDestroyImageView(context->device, n_list_get_inline(context->swapChainImageViews, i, VkImageView), NULL);
-    }
-    n_list_destroy(context->swapChainImageViews);
-    n_list_destroy(context->swapChainImages);
-    vkDestroySwapchainKHR(context->device, context->swapChain, NULL);
 
     vkDestroyDevice(context->device, NULL);
     n_list_destroy(context->physicalDevices);
