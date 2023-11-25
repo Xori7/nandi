@@ -386,12 +386,14 @@ void create_graphics_pipeline(NGraphicsContext *context) {
 
     VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
+    VkVertexInputBindingDescription bindingDescription = vertex_get_binding_description();
+    NList attributeDescription = vertex_get_attribute_descriptions();
     VkPipelineVertexInputStateCreateInfo vertexInputInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-            .vertexBindingDescriptionCount = 0,
-            .pVertexBindingDescriptions = NULL,
-            .vertexAttributeDescriptionCount = 0,
-            .pVertexAttributeDescriptions = NULL
+            .vertexBindingDescriptionCount = 1,
+            .pVertexBindingDescriptions = &bindingDescription,
+            .vertexAttributeDescriptionCount = attributeDescription.count,
+            .pVertexAttributeDescriptions = (VkVertexInputAttributeDescription*)attributeDescription.elements
     };
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly = {
@@ -544,6 +546,60 @@ void create_command_pool(NGraphicsContext *context) {
     }
 }
 
+uint32_t find_memory_type(NGraphicsContext *context, uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+    VkPhysicalDeviceMemoryProperties memoryProperties;
+    vkGetPhysicalDeviceMemoryProperties(context->pickedPhysicalDevice, &memoryProperties);
+
+    for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; ++i) {
+        if (typeFilter & (1 << i) && (memoryProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+            return i;
+        }
+    }
+
+    n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to find suitable memory type!");
+    exit(-1);
+}
+
+void create_vertex_buffers(NGraphicsContext *context) {
+    Vertex vertices[3] = {
+            {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+            {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+            {{-0.5f, 0.5f}, {1.0f, 0.0f, 1.0f}}
+    };
+    VkBufferCreateInfo bufferInfo = {
+            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .size = sizeof(vertices[0]) * 3,
+            .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE
+    };
+
+    if (vkCreateBuffer(context->device, &bufferInfo, NULL, &context->vertexBuffer) != VK_SUCCESS) {
+        n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to create vertex buffer!");
+        exit(-1);
+    }
+
+    VkMemoryRequirements memoryRequirements;
+    vkGetBufferMemoryRequirements(context->device, context->vertexBuffer, &memoryRequirements);
+
+    VkMemoryAllocateInfo allocateInfo = {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            .allocationSize = memoryRequirements.size,
+            .memoryTypeIndex = find_memory_type(context, memoryRequirements.memoryTypeBits,
+                                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+    };
+
+    if (vkAllocateMemory(context->device, &allocateInfo, NULL, &context->vertexBufferMemory) != VK_SUCCESS) {
+        n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to allocate vertex buffer memory!");
+        exit(-1);
+    }
+    vkBindBufferMemory(context->device, context->vertexBuffer, context->vertexBufferMemory, 0);
+    void *data;
+    vkMapMemory(context->device, context->vertexBufferMemory, 0, bufferInfo.size, 0, &data);
+    memcpy(data, vertices, (size_t)bufferInfo.size);
+    vkUnmapMemory(context->device, context->vertexBufferMemory);
+}
+
 void create_command_buffer(NGraphicsContext *context) {
     VkCommandBufferAllocateInfo allocInfo = {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -598,7 +654,13 @@ void record_command_buffer(NGraphicsContext *context, uint32_t imageIndex) {
             .extent = context->swapChainExtent
     };
     vkCmdSetScissor(context->commandBuffer, 0, 1, &scissor);
+
+    VkBuffer vertexBuffers[] = {context->vertexBuffer};
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(context->commandBuffer, 0, 1, vertexBuffers, offsets);
+
     vkCmdDraw(context->commandBuffer, 3, 1, 0, 0);
+
     vkCmdEndRenderPass(context->commandBuffer);
 
     if (vkEndCommandBuffer(context->commandBuffer) != VK_SUCCESS) {
@@ -682,7 +744,7 @@ void cleanup_swap_chain(NGraphicsContext *context) {
     vkDestroySwapchainKHR(context->device, context->swapChain, NULL);
 }
 
-void recreate_swap_chain(NGraphicsContext *context, NWindow window) {
+extern void n_graphics_recreate_swap_chain(NGraphicsContext *context, NWindow window) {
     vkDeviceWaitIdle(context->device);
     cleanup_swap_chain(context);
 
@@ -703,7 +765,7 @@ void main_loop(NGraphicsContext *context, NWindow window) {
         if (n_input_key_down(NKEYCODE_Q))
             running = false;
         if (windowResized) {
-            recreate_swap_chain(context, window);
+            n_graphics_recreate_swap_chain(context, window);
         }
         draw_frame(context);
     }
@@ -726,6 +788,7 @@ extern NGraphicsContext n_graphics_initialize(NLogger logger, NWindow window) {
     create_frame_buffers(&context);
 
     create_command_pool(&context);
+    create_vertex_buffers(&context);
     create_command_buffer(&context);
     create_sync_objects(&context);
 
@@ -738,6 +801,9 @@ extern NGraphicsContext n_graphics_initialize(NLogger logger, NWindow window) {
 
 extern void n_graphics_cleanup(NGraphicsContext *context) {
     cleanup_swap_chain(context);
+
+    vkDestroyBuffer(context->device, context->vertexBuffer, NULL);
+    vkFreeMemory(context->device, context->vertexBufferMemory, NULL);
 
     vkDestroySemaphore(context->device, context->imageAvailableSemaphore, NULL);
     vkDestroySemaphore(context->device, context->renderFinishedSemaphore, NULL);

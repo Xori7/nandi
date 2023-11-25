@@ -522,8 +522,19 @@ typedef struct {
     VkSemaphore imageAvailableSemaphore;
     VkSemaphore renderFinishedSemaphore;
     VkFence inFlightFence;
+
+    VkBuffer vertexBuffer;
+    VkDeviceMemory vertexBufferMemory;
 }NGraphicsContext;
 
+typedef struct {
+    NVec2f32 pos;
+    NVec3f32 color;
+} Vertex;
+VkVertexInputBindingDescription vertex_get_binding_description();
+NList vertex_get_attribute_descriptions();
+
 extern NGraphicsContext n_graphics_initialize(NLogger logger, NWindow window);
+extern void n_graphics_recreate_swap_chain(NGraphicsContext *context, NWindow window);
 extern void n_graphics_cleanup(NGraphicsContext *context);
 #endif

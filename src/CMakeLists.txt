@@ -8,4 +8,5 @@ target_sources(nandi PRIVATE
         nandi_math.c
         memory/nandi_memory.c
         memory/nandi_list.c
-        graphics/graphics_vulkan.c)
+        graphics/graphics_vulkan.c
+        graphics/vertex.c)
