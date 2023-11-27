@@ -525,6 +525,8 @@ typedef struct {
 
     VkBuffer vertexBuffer;
     VkDeviceMemory vertexBufferMemory;
+    VkBuffer indexBuffer;
+    VkDeviceMemory indexBufferMemory;
 }NGraphicsContext;
 
 typedef struct {

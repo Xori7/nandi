@@ -560,44 +560,127 @@ uint32_t find_memory_type(NGraphicsContext *context, uint32_t typeFilter, VkMemo
     exit(-1);
 }
 
-void create_vertex_buffers(NGraphicsContext *context) {
-    Vertex vertices[3] = {
-            {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-            {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-            {{-0.5f, 0.5f}, {1.0f, 0.0f, 1.0f}}
-    };
+void create_buffer(NGraphicsContext *context, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer *buffer, VkDeviceMemory *bufferMemory) {
     VkBufferCreateInfo bufferInfo = {
             .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .size = sizeof(vertices[0]) * 3,
-            .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            .size = size,
+            .usage = usage,
             .sharingMode = VK_SHARING_MODE_EXCLUSIVE
     };
 
-    if (vkCreateBuffer(context->device, &bufferInfo, NULL, &context->vertexBuffer) != VK_SUCCESS) {
-        n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to create vertex buffer!");
+    if (vkCreateBuffer(context->device, &bufferInfo, NULL, buffer) != VK_SUCCESS) {
+        n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to create buffer!");
         exit(-1);
     }
 
     VkMemoryRequirements memoryRequirements;
-    vkGetBufferMemoryRequirements(context->device, context->vertexBuffer, &memoryRequirements);
+    vkGetBufferMemoryRequirements(context->device, *buffer, &memoryRequirements);
 
     VkMemoryAllocateInfo allocateInfo = {
             .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
             .allocationSize = memoryRequirements.size,
-            .memoryTypeIndex = find_memory_type(context, memoryRequirements.memoryTypeBits,
-                                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+            .memoryTypeIndex = find_memory_type(context, memoryRequirements.memoryTypeBits, properties)
     };
 
-    if (vkAllocateMemory(context->device, &allocateInfo, NULL, &context->vertexBufferMemory) != VK_SUCCESS) {
-        n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to allocate vertex buffer memory!");
+    if (vkAllocateMemory(context->device, &allocateInfo, NULL, bufferMemory) != VK_SUCCESS) {
+        n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to allocate buffer memory!");
         exit(-1);
     }
-    vkBindBufferMemory(context->device, context->vertexBuffer, context->vertexBufferMemory, 0);
+    vkBindBufferMemory(context->device, *buffer, *bufferMemory, 0);
+}
+
+void copy_buffer(NGraphicsContext *context, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
+    VkCommandBufferAllocateInfo allocateInfo = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            .commandPool = context->commandPool,
+            .commandBufferCount = 1
+    };
+
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(context->device, &allocateInfo, &commandBuffer);
+
+    VkCommandBufferBeginInfo beginInfo = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+    };
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    VkBufferCopy copyRegion = {
+            .srcOffset = 0,
+            .dstOffset = 0,
+            .size = size
+    };
+    vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+    vkEndCommandBuffer(commandBuffer);
+
+    VkSubmitInfo submitInfo = {
+            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .commandBufferCount = 1,
+            .pCommandBuffers = &commandBuffer
+    };
+
+    vkQueueSubmit(context->graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(context->graphicsQueue);
+    vkFreeCommandBuffers(context->device, context->commandPool, 1, &commandBuffer);
+}
+
+#define VERTEX_COUNT 4
+const Vertex vertices[VERTEX_COUNT] = {
+        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+        {{0.5f, 0.5f}, {1.0f, 0.0f, 1.0f}},
+        {{-0.5f, 0.5f}, {1.0f, 0.0f, 1.0f}}
+};
+
+#define INDEX_COUNT 6
+uint16_t indices[INDEX_COUNT] = {
+        0, 1, 2, 2, 3, 0
+};
+
+void create_vertex_buffer(NGraphicsContext *context) {
+    VkDeviceSize bufferSize = sizeof(vertices[0]) * VERTEX_COUNT;
+
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+    create_buffer(context, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                  &stagingBuffer, &stagingBufferMemory);
+
     void *data;
-    vkMapMemory(context->device, context->vertexBufferMemory, 0, bufferInfo.size, 0, &data);
-    memcpy(data, vertices, (size_t)bufferInfo.size);
-    vkUnmapMemory(context->device, context->vertexBufferMemory);
+    vkMapMemory(context->device, stagingBufferMemory, 0, bufferSize, 0, &data);
+    memcpy(data, vertices, (size_t)bufferSize);
+    vkUnmapMemory(context->device, stagingBufferMemory);
+
+    create_buffer(context, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                  &context->vertexBuffer, &context->vertexBufferMemory);
+    copy_buffer(context, stagingBuffer, context->vertexBuffer, bufferSize);
+
+    vkDestroyBuffer(context->device, stagingBuffer, NULL);
+    vkFreeMemory(context->device, stagingBufferMemory, NULL);
+}
+
+void create_index_buffer(NGraphicsContext *context) {
+    VkDeviceSize bufferSize = sizeof(indices[0]) * INDEX_COUNT;
+
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+    create_buffer(context, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                  &stagingBuffer, &stagingBufferMemory);
+
+    void *data;
+    vkMapMemory(context->device, stagingBufferMemory, 0, bufferSize, 0, &data);
+    memcpy(data, indices, (size_t)bufferSize);
+    vkUnmapMemory(context->device, stagingBufferMemory);
+
+    create_buffer(context, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                  &context->indexBuffer, &context->indexBufferMemory);
+    copy_buffer(context, stagingBuffer, context->indexBuffer, bufferSize);
+
+    vkDestroyBuffer(context->device, stagingBuffer, NULL);
+    vkFreeMemory(context->device, stagingBufferMemory, NULL);
 }
 
 void create_command_buffer(NGraphicsContext *context) {
@@ -658,8 +741,9 @@ void record_command_buffer(NGraphicsContext *context, uint32_t imageIndex) {
     VkBuffer vertexBuffers[] = {context->vertexBuffer};
     VkDeviceSize offsets[] = {0};
     vkCmdBindVertexBuffers(context->commandBuffer, 0, 1, vertexBuffers, offsets);
+    vkCmdBindIndexBuffer(context->commandBuffer, context->indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
-    vkCmdDraw(context->commandBuffer, 3, 1, 0, 0);
+    vkCmdDrawIndexed(context->commandBuffer, INDEX_COUNT, 1, 0, 0, 0);
 
     vkCmdEndRenderPass(context->commandBuffer);
 
@@ -788,7 +872,8 @@ extern NGraphicsContext n_graphics_initialize(NLogger logger, NWindow window) {
     create_frame_buffers(&context);
 
     create_command_pool(&context);
-    create_vertex_buffers(&context);
+    create_vertex_buffer(&context);
+    create_index_buffer(&context);
     create_command_buffer(&context);
     create_sync_objects(&context);
 
@@ -802,6 +887,8 @@ extern NGraphicsContext n_graphics_initialize(NLogger logger, NWindow window) {
 extern void n_graphics_cleanup(NGraphicsContext *context) {
     cleanup_swap_chain(context);
 
+    vkDestroyBuffer(context->device, context->indexBuffer, NULL);
+    vkFreeMemory(context->device, context->indexBufferMemory, NULL);
     vkDestroyBuffer(context->device, context->vertexBuffer, NULL);
     vkFreeMemory(context->device, context->vertexBufferMemory, NULL);
 
