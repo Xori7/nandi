@@ -6,6 +6,7 @@
 #include <malloc.h>
 #include <stdatomic.h>
 #include <string.h>
+#include <cglm/cglm.h>
 
 // CString
 char *n_internal_cstring_format_args(const char *format, va_list args);
@@ -150,9 +151,10 @@ void i_n_test_assert(const char *testName, int32_t testLine, bool condition, con
 #define n_assert_u64_greater(exp, act)  i_n_assert_compare(exp, act, >, "> %lu", "%lu")
 #define n_assert_u64_lower(exp, act)    i_n_assert_compare(exp, act, <, "< %lu", "%lu")
 
-//Vectors
-typedef struct {
-    int32_t x, y;
+//Math
+typedef union {
+    struct {int32_t x, y;};
+    ivec2 v;
 } NVec2i32;
 typedef struct {
     int64_t x, y;
@@ -163,14 +165,16 @@ typedef struct {
 typedef struct {
     uint64_t x, y;
 } NVec2u64;
-typedef struct {
-    float x, y;
+typedef union {
+    struct {float x, y;};
+    vec2 v;
 } NVec2f32;
 typedef struct {
     double x, y;
 } NVec2f64;
-typedef struct {
-    int32_t x, y, z;
+typedef union {
+    struct {int32_t x, y, z;};
+    ivec3 v;
 } NVec3i32;
 typedef struct {
     int64_t x, y, z;
@@ -181,8 +185,9 @@ typedef struct {
 typedef struct {
     uint64_t x, y, z;
 } NVec3u64;
-typedef struct {
-    float x, y, z;
+typedef union {
+    struct {float x, y, z;};
+    vec3 v;
 } NVec3f32;
 typedef struct {
     double x, y, z;
@@ -204,8 +209,11 @@ typedef union {
     NVec3f64 v3f64;
 } NVecAnything;
 
-// Math
-uint32_t n_math_clamp(uint32_t value, uint32_t min, uint32_t max);
+typedef struct {
+    mat4 m;
+} NMatrix4x4;
+
+extern uint32_t n_math_clamp_u32(uint32_t value, uint32_t min, uint32_t max);
 
 // Input
 typedef enum {
@@ -492,6 +500,8 @@ extern void n_window_set_client_size(NWindow window, NVec2i32 size);
 //Graphics
 #include "vulkan/vulkan.h"
 
+#define MAX_FRAMES_IN_FLIGHT 2
+
 typedef struct {
     NLogger logger;
     VkInstance instance;
@@ -511,23 +521,32 @@ typedef struct {
     VkExtent2D swapChainExtent;
 
     VkRenderPass renderPass;
+    VkDescriptorSetLayout descriptorSetLayout;
     VkPipelineLayout pipelineLayout;
     VkPipeline graphicsPipeline;
 
     NList swapChainFramebuffers;
 
     VkCommandPool commandPool;
-    VkCommandBuffer commandBuffer;
+    NList commandBuffers;
 
-    VkSemaphore imageAvailableSemaphore;
-    VkSemaphore renderFinishedSemaphore;
-    VkFence inFlightFence;
+    NList imageAvailableSemaphores;
+    NList renderFinishedSemaphores;
+    NList inFlightFences;
+
+    uint32_t currentFrame;
 
     VkBuffer vertexBuffer;
     VkDeviceMemory vertexBufferMemory;
     VkBuffer indexBuffer;
     VkDeviceMemory indexBufferMemory;
-}NGraphicsContext;
+
+    NList uniformBuffers;
+    NList uniformBuffersMemory;
+    NList uniformBuffersMapped;
+    VkDescriptorPool descriptorPool;
+    NList descriptorSets;
+} NGraphicsContext;
 
 typedef struct {
     NVec2f32 pos;

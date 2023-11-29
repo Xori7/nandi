@@ -1,5 +1,6 @@
-#ifndef NANDI_NANDI_TEST_H
-#define NANDI_NANDI_TEST_H
+#ifndef NANDI_TEST
+#define NANDI_TEST
+
 #include "nandi.h"
 
 NLogger logger;
