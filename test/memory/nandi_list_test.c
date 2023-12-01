@@ -161,7 +161,7 @@ void test_n_list_contains_returns_true_when_value_was_added_to_list() {
 
 void test_n_list_index_of_returns_index_of_passed_element() {
     NList list = n_list_create(sizeof(char *), 4);
-    char *text = "He just don't sleep :o";
+    char *text = "He just doesn't sleep :o";
     n_list_add_inline(&list, char*, "I don't know why");
     n_list_add_inline(&list, char*, "Or do I?");
     n_list_add(&list, &text);
