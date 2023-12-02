@@ -3,7 +3,8 @@ project(nandi)
 set(CMAKE_C_STANDARD 17)
 
 add_compile_options(/experimental:c11atomics)
-include_directories(external/vulkan/include)
+include_directories(external/vulkan/include
+                    external/cglm/include)
 link_directories(external/vulkan/lib)
 add_library(nandi STATIC)
 add_subdirectory(src)
