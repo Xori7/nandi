@@ -1,9 +1,9 @@
 #include "../nandi.h"
 #include <memory.h>
 
-extern NList n_list_create(size_t typeSize, uint64_t capacity) {
+NList i_n_list_create(size_t typeSize, uint64_t capacity, const char *func, const uint32_t line) {
     NList list = {
-            .elements = n_memory_alloc(typeSize * capacity),
+            .elements = n_memory_alloc_extdbg(typeSize * capacity, func, line),
             .count = 0,
             .typeSize = typeSize,
             .capacity = capacity
@@ -11,9 +11,9 @@ extern NList n_list_create(size_t typeSize, uint64_t capacity) {
     return list;
 }
 
-extern NList n_list_create_filled(size_t typeSize, uint64_t count) {
+extern NList i_n_list_create_filled(size_t typeSize, uint64_t count, const char *func, uint32_t line) {
     NList list = {
-            .elements = n_memory_alloc(typeSize * count),
+            .elements = n_memory_alloc_extdbg(typeSize * count, func, line),
             .count = count,
             .typeSize = typeSize,
             .capacity = count

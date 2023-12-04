@@ -362,7 +362,7 @@ void create_render_pass(NGraphicsContext *context) {
     }
 }
 
-void create_graphics_pipeline(NGraphicsContext *context) {
+void create_graphics_pipeline(NGraphicsContext *context, NMaterial *material) {
     uint32_t vertSize, fragSize;
 
     char *vertShaderCode = read_file("./shaders/vert.spv", &vertSize);
@@ -386,8 +386,13 @@ void create_graphics_pipeline(NGraphicsContext *context) {
 
     VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
-    VkVertexInputBindingDescription bindingDescription = vertex_get_binding_description();
-    NList attributeDescription = vertex_get_attribute_descriptions();
+    VkVertexInputBindingDescription bindingDescription = {
+            .binding = 0,
+            .stride = material->vertexDescriptor.size,
+            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+    };
+    NList_VkVertexInputAttributeDescription attributeDescription = material->vertexDescriptor.attributeDescriptors;
+
     VkPipelineVertexInputStateCreateInfo vertexInputInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
             .vertexBindingDescriptionCount = 1,
@@ -470,12 +475,12 @@ void create_graphics_pipeline(NGraphicsContext *context) {
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
             .setLayoutCount = 1,
-            .pSetLayouts = &context->descriptorSetLayout,
+            .pSetLayouts = &material->descriptorSetLayout,
             .pushConstantRangeCount = 0,
             .pPushConstantRanges = NULL
     };
 
-    if (vkCreatePipelineLayout(context->device, &pipelineLayoutInfo, NULL, &context->pipelineLayout) != VK_SUCCESS) {
+    if (vkCreatePipelineLayout(context->device, &pipelineLayoutInfo, NULL, &material->pipelineLayout) != VK_SUCCESS) {
         n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to create pipeline layout!");
         exit(-1);
     }
@@ -492,14 +497,14 @@ void create_graphics_pipeline(NGraphicsContext *context) {
             .pDepthStencilState = NULL,
             .pColorBlendState = &colorBlending,
             .pDynamicState = &dynamicState,
-            .layout = context->pipelineLayout,
+            .layout = material->pipelineLayout,
             .renderPass = context->renderPass,
             .subpass = 0,
             .basePipelineHandle = VK_NULL_HANDLE,
             .basePipelineIndex = -1
     };
 
-    if (vkCreateGraphicsPipelines(context->device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &context->graphicsPipeline) != VK_SUCCESS) {
+    if (vkCreateGraphicsPipelines(context->device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &material->graphicsPipeline) != VK_SUCCESS) {
         n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to create graphics pipeline!");
         exit(-1);
     }
@@ -626,22 +631,8 @@ void copy_buffer(NGraphicsContext *context, VkBuffer srcBuffer, VkBuffer dstBuff
     vkFreeCommandBuffers(context->device, context->commandPool, 1, &commandBuffer);
 }
 
-#define VERTEX_COUNT 4
-const Vertex vertices[VERTEX_COUNT] = {
-        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-        {{0.5f,  -0.5f}, {0.0f, 1.0f, 0.0f}},
-        {{0.5f,  0.5f},  {1.0f, 0.0f, 1.0f}},
-        {{-0.5f, 0.5f},  {1.0f, 0.0f, 1.0f}}
-};
-
-#define INDEX_COUNT 6
-uint16_t indices[INDEX_COUNT] = {
-        2, 1, 0, 0, 3, 2
-};
-
-void create_vertex_buffer(NGraphicsContext *context) {
-    VkDeviceSize bufferSize = sizeof(vertices[0]) * VERTEX_COUNT;
-
+void update_vertex_buffer(NGraphicsContext *context, NMesh *mesh) {
+    VkDeviceSize bufferSize = mesh->material->vertexDescriptor.size * mesh->vertices.count;
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
     create_buffer(context, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
@@ -650,21 +641,24 @@ void create_vertex_buffer(NGraphicsContext *context) {
 
     void *data;
     vkMapMemory(context->device, stagingBufferMemory, 0, bufferSize, 0, &data);
-    memcpy(data, vertices, (size_t) bufferSize);
+    memcpy(data, mesh->vertices.elements, (size_t) bufferSize);
     vkUnmapMemory(context->device, stagingBufferMemory);
 
-    create_buffer(context, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                  &context->vertexBuffer, &context->vertexBufferMemory);
-    copy_buffer(context, stagingBuffer, context->vertexBuffer, bufferSize);
+    copy_buffer(context, stagingBuffer, mesh->vertexBuffer, bufferSize);
 
     vkDestroyBuffer(context->device, stagingBuffer, NULL);
     vkFreeMemory(context->device, stagingBufferMemory, NULL);
 }
+void create_vertex_buffer(NGraphicsContext *context, NMesh *mesh) {
+    VkDeviceSize bufferSize = mesh->material->vertexDescriptor.size * mesh->vertices.count;
+    create_buffer(context, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                  &mesh->vertexBuffer, &mesh->vertexBufferMemory);
+    update_vertex_buffer(context, mesh);
+}
 
-void create_index_buffer(NGraphicsContext *context) {
-    VkDeviceSize bufferSize = sizeof(indices[0]) * INDEX_COUNT;
-
+void update_index_buffer(NGraphicsContext *context, NMesh *mesh) {
+    VkDeviceSize bufferSize = sizeof(uint32_t) * mesh->indices.count;
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
     create_buffer(context, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
@@ -673,16 +667,20 @@ void create_index_buffer(NGraphicsContext *context) {
 
     void *data;
     vkMapMemory(context->device, stagingBufferMemory, 0, bufferSize, 0, &data);
-    memcpy(data, indices, (size_t) bufferSize);
+    memcpy(data, mesh->indices.elements, (size_t) bufferSize);
     vkUnmapMemory(context->device, stagingBufferMemory);
 
-    create_buffer(context, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                  &context->indexBuffer, &context->indexBufferMemory);
-    copy_buffer(context, stagingBuffer, context->indexBuffer, bufferSize);
+    copy_buffer(context, stagingBuffer, mesh->indexBuffer, bufferSize);
 
     vkDestroyBuffer(context->device, stagingBuffer, NULL);
     vkFreeMemory(context->device, stagingBufferMemory, NULL);
+}
+void create_index_buffer(NGraphicsContext *context, NMesh *mesh) {
+    VkDeviceSize bufferSize = sizeof(uint32_t) * mesh->indices.count;
+    create_buffer(context, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                  &mesh->indexBuffer, &mesh->indexBufferMemory);
+    update_index_buffer(context, mesh);
 }
 
 typedef struct {
@@ -691,27 +689,27 @@ typedef struct {
     NMatrix4x4 proj;
 } UniformBufferObject;
 
-void create_uniform_buffers(NGraphicsContext *context) {
+void create_uniform_buffers(NGraphicsContext *context, NMaterial *material) {
     VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 
-    context->uniformBuffers = n_list_create_filled(sizeof(VkBuffer), MAX_FRAMES_IN_FLIGHT);
-    context->uniformBuffersMemory = n_list_create_filled(sizeof(VkDeviceMemory), MAX_FRAMES_IN_FLIGHT);
-    context->uniformBuffersMapped = n_list_create_filled(sizeof(void *), MAX_FRAMES_IN_FLIGHT);
+    material->uniformBuffers = n_list_create_filled(sizeof(VkBuffer), MAX_FRAMES_IN_FLIGHT);
+    material->uniformBuffersMemory = n_list_create_filled(sizeof(VkDeviceMemory), MAX_FRAMES_IN_FLIGHT);
+    material->uniformBuffersMapped = n_list_create_filled(sizeof(void *), MAX_FRAMES_IN_FLIGHT);
 
     for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
         create_buffer(context, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                      &n_list_get_inline(context->uniformBuffers, i, VkBuffer),
-                      &n_list_get_inline(context->uniformBuffersMemory, i, VkDeviceMemory));
-        vkMapMemory(context->device, n_list_get_inline(context->uniformBuffersMemory, i, VkDeviceMemory), 0, bufferSize, 0,
-                    &n_list_get_inline(context->uniformBuffersMapped, i, void*));
+                      &n_list_get_inline(material->uniformBuffers, i, VkBuffer),
+                      &n_list_get_inline(material->uniformBuffersMemory, i, VkDeviceMemory));
+        vkMapMemory(context->device, n_list_get_inline(material->uniformBuffersMemory, i, VkDeviceMemory), 0, bufferSize, 0,
+                    &n_list_get_inline(material->uniformBuffersMapped, i, void*));
     }
 }
 
 float rotation = 180;
 NVec3f32 position = {2.0, 2.0, 2.0};
 
-void update_uniform_buffer(NGraphicsContext *context, uint32_t currentImage) {
+void update_uniform_buffer(NGraphicsContext *context, NMesh *mesh, uint32_t currentImage) {
     if (n_input_key(NKEYCODE_S))
         position.x -= 0.001f;
     if (n_input_key(NKEYCODE_W))
@@ -722,17 +720,21 @@ void update_uniform_buffer(NGraphicsContext *context, uint32_t currentImage) {
         position.y += 0.001f;
 
     UniformBufferObject ubo = {0};
-    rotation += 0.01f;
+    rotation += 1.0f;
     glm_mat4_identity(&ubo.model);
     NVec3f32 axis = {0, 0, 1};
     glm_rotate(&ubo.model, glm_rad(rotation), &axis);
     glm_lookat(&position, &(NVec3f32) {position.x - 1, position.y - 1, position.z - 1}, &(NVec3f32) {0.0f, 0.0f, 1.0f}, &ubo.view);
     glm_perspective(glm_rad(45.0f), (float)context->swapChainExtent.width / (float)context->swapChainExtent.height, 0.1f, 10.0f, &ubo.proj);
     ubo.proj.m[1][1] *= -1;
-    memcpy(n_list_get_inline(context->uniformBuffersMapped, currentImage, void*), &ubo, sizeof(ubo));
+
+    NMatrix4x4 mat = {0};
+    glm_mat4_mul(&ubo.model, &ubo.proj, &mat);
+    glm_mat4_mul(&mat, &ubo.view, &mesh->modelMatrix);
+    memcpy(n_list_get_inline(mesh->material->uniformBuffersMapped, currentImage, void*), &ubo, sizeof(ubo));
 }
 
-void create_descriptor_pool(NGraphicsContext *context) {
+void create_descriptor_pool(NGraphicsContext *context, NMaterial *material) {
     VkDescriptorPoolSize poolSize = {
             .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount = MAX_FRAMES_IN_FLIGHT
@@ -745,40 +747,40 @@ void create_descriptor_pool(NGraphicsContext *context) {
             .maxSets = MAX_FRAMES_IN_FLIGHT
     };
 
-    if (vkCreateDescriptorPool(context->device, &poolInfo, NULL, &context->descriptorPool) != VK_SUCCESS) {
+    if (vkCreateDescriptorPool(context->device, &poolInfo, NULL, &material->descriptorPool) != VK_SUCCESS) {
         n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to create descriptor pool!");
         exit(-1);
     }
 }
 
-void create_descriptor_sets(NGraphicsContext *context) {
+void create_descriptor_sets(NGraphicsContext *context, NMaterial *material) {
     NList layouts = n_list_create_filled(sizeof(VkDescriptorSetLayout), MAX_FRAMES_IN_FLIGHT);
     for (uint32_t i = 0; i < layouts.count; ++i) {
-        n_list_set_inline(&layouts, i, VkDescriptorSetLayout, context->descriptorSetLayout);
+        n_list_set_inline(&layouts, i, VkDescriptorSetLayout, material->descriptorSetLayout);
     }
 
     VkDescriptorSetAllocateInfo allocInfo = {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool = context->descriptorPool,
+            .descriptorPool = material->descriptorPool,
             .descriptorSetCount = MAX_FRAMES_IN_FLIGHT,
             .pSetLayouts = (VkDescriptorSetLayout *) layouts.elements
     };
 
-    context->descriptorSets = n_list_create_filled(sizeof(VkDescriptorSet), MAX_FRAMES_IN_FLIGHT);
-    if (vkAllocateDescriptorSets(context->device, &allocInfo, (VkDescriptorSet *) context->descriptorSets.elements) != VK_SUCCESS) {
+    material->descriptorSets = n_list_create_filled(sizeof(VkDescriptorSet), MAX_FRAMES_IN_FLIGHT);
+    if (vkAllocateDescriptorSets(context->device, &allocInfo, (VkDescriptorSet*)material->descriptorSets.elements) != VK_SUCCESS) {
         n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to allocate descriptor sets!");
         exit(-1);
     }
 
     for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
         VkDescriptorBufferInfo bufferInfo = {
-                .buffer = n_list_get_inline(context->uniformBuffers, i, VkBuffer),
+                .buffer = n_list_get_inline(material->uniformBuffers, i, VkBuffer),
                 .offset = 0,
                 .range = sizeof(UniformBufferObject)
         };
         VkWriteDescriptorSet descriptorWrite = {
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = n_list_get_inline(context->descriptorSets, i, VkDescriptorSet),
+                .dstSet = n_list_get_inline(material->descriptorSets, i, VkDescriptorSet),
                 .dstBinding = 0,
                 .dstArrayElement = 0,
                 .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -793,7 +795,7 @@ void create_descriptor_sets(NGraphicsContext *context) {
     n_list_destroy(layouts);
 }
 
-void create_descriptor_set_layout(NGraphicsContext *context) {
+void create_descriptor_set_layout(NGraphicsContext *context, NMaterial *material) {
     VkDescriptorSetLayoutBinding uboLayoutBinding = {
             .binding = 0,
             .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -808,7 +810,7 @@ void create_descriptor_set_layout(NGraphicsContext *context) {
             .pBindings = &uboLayoutBinding
     };
 
-    if (vkCreateDescriptorSetLayout(context->device, &layoutInfo, NULL, &context->descriptorSetLayout) != VK_SUCCESS) {
+    if (vkCreateDescriptorSetLayout(context->device, &layoutInfo, NULL, &material->descriptorSetLayout) != VK_SUCCESS) {
         n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to crate descriptor set layout!");
         exit(-1);
     }
@@ -852,33 +854,45 @@ void record_command_buffer(NGraphicsContext *context, VkCommandBuffer commandBuf
     };
 
     vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->graphicsPipeline);
 
-    VkViewport viewport = {
-            .x = 0.0f,
-            .y = 0.0f,
-            .width = (float) context->swapChainExtent.width,
-            .height = (float) context->swapChainExtent.height,
-            .minDepth = 0.0f,
-            .maxDepth = 1.0f
-    };
-    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+    for (uint32_t i = 0; i < context->materials.count; ++i) {
+        NMaterial material;
+        n_list_get(context->materials, i, &material);
 
-    VkRect2D scissor = {
-            .offset = {0, 0},
-            .extent = context->swapChainExtent
-    };
-    vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, material.graphicsPipeline);
 
-    VkBuffer vertexBuffers[] = {context->vertexBuffer};
-    VkDeviceSize offsets[] = {0};
-    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-    vkCmdBindIndexBuffer(commandBuffer, context->indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+        VkViewport viewport = {
+                .x = 0.0f,
+                .y = 0.0f,
+                .width = (float) context->swapChainExtent.width,
+                .height = (float) context->swapChainExtent.height,
+                .minDepth = 0.0f,
+                .maxDepth = 1.0f
+        };
+        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->pipelineLayout, 0, 1,
-                            &n_list_get_inline(context->descriptorSets, context->currentFrame, VkDescriptorSet), 0, NULL);
-    vkCmdDrawIndexed(commandBuffer, INDEX_COUNT, 1, 0, 0, 0);
+        VkRect2D scissor = {
+                .offset = {0, 0},
+                .extent = context->swapChainExtent
+        };
+        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
+        for (uint32_t j = 0; j < material.meshes.count; ++j) {
+            NMesh mesh;
+            n_list_get(material.meshes, j, &mesh);
+
+            VkBuffer vertexBuffers[] = {mesh.vertexBuffer};
+            VkDeviceSize offsets[] = {0};
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+            vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, material.pipelineLayout, 0, 1,
+                                    &n_list_get_inline(material.descriptorSets, context->currentFrame, VkDescriptorSet), 0, NULL);
+
+            update_uniform_buffer(context, &mesh, context->currentFrame); //TODO
+            vkCmdDrawIndexed(commandBuffer, mesh.indices.count, 1, 0, 0, 0);
+        }
+    }
     vkCmdEndRenderPass(commandBuffer);
 
     if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
@@ -912,7 +926,7 @@ void create_sync_objects(NGraphicsContext *context) {
     }
 }
 
-void draw_frame(NGraphicsContext *context) {
+extern void n_graphics_draw_frame(NGraphicsContext *context) {
     vkWaitForFences(context->device, 1, &n_list_get_inline(context->inFlightFences, context->currentFrame, VkFence), VK_TRUE, UINT64_MAX);
     vkResetFences(context->device, 1, &n_list_get_inline(context->inFlightFences, context->currentFrame, VkFence));
 
@@ -921,8 +935,6 @@ void draw_frame(NGraphicsContext *context) {
                           n_list_get_inline(context->imageAvailableSemaphores, context->currentFrame, VkSemaphore), VK_NULL_HANDLE, &imageIndex);
     vkResetCommandBuffer(n_list_get_inline(context->commandBuffers, context->currentFrame, VkCommandBuffer), 0);
     record_command_buffer(context, n_list_get_inline(context->commandBuffers, context->currentFrame, VkCommandBuffer), imageIndex);
-
-    update_uniform_buffer(context, context->currentFrame);
 
     VkSubmitInfo submitInfo = {
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO
@@ -985,27 +997,6 @@ extern void n_graphics_recreate_swap_chain(NGraphicsContext *context, NWindow wi
     create_frame_buffers(context);
 }
 
-bool running = true;
-bool windowResized = false;
-
-void on_window_resized(NWindow window) {
-    windowResized = true;
-}
-
-void main_loop(NGraphicsContext *context, NWindow window) {
-    while (running) {
-        n_input_update();
-        if (n_input_key_down(NKEYCODE_Q))
-            running = false;
-        if (windowResized) {
-            n_graphics_recreate_swap_chain(context, window);
-            windowResized = false;
-        }
-        draw_frame(context);
-    }
-    vkDeviceWaitIdle(context->device);
-}
-
 extern NGraphicsContext n_graphics_initialize(NLogger logger, NWindow window) {
     NGraphicsContext context = {
             .logger = logger
@@ -1018,46 +1009,20 @@ extern NGraphicsContext n_graphics_initialize(NLogger logger, NWindow window) {
     create_swap_chain(&context, window);
     create_image_views(&context);
     create_render_pass(&context);
-    create_descriptor_set_layout(&context);
-    create_graphics_pipeline(&context);
     create_frame_buffers(&context);
 
     create_command_pool(&context);
-    create_vertex_buffer(&context);
-    create_index_buffer(&context);
-    create_uniform_buffers(&context);
-    create_descriptor_pool(&context);
-    create_descriptor_sets(&context);
 
     create_command_buffers(&context);
     create_sync_objects(&context);
 
-    window->onSizeChangedFunc = on_window_resized;
-
-    main_loop(&context, window);
+    context.materials = n_list_create(sizeof(NMaterial), 4);
 
     return context;
 }
 
 extern void n_graphics_cleanup(NGraphicsContext *context) {
     cleanup_swap_chain(context);
-
-    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
-        vkDestroyBuffer(context->device, n_list_get_inline(context->uniformBuffers, i, VkBuffer), NULL);
-        vkFreeMemory(context->device, n_list_get_inline(context->uniformBuffersMemory, i, VkDeviceMemory), NULL);
-    }
-    n_list_destroy(context->uniformBuffers);
-    n_list_destroy(context->uniformBuffersMemory);
-    n_list_destroy(context->uniformBuffersMapped);
-
-    vkDestroyDescriptorPool(context->device, context->descriptorPool, NULL);
-    n_list_destroy(context->descriptorSets);
-    vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayout, NULL);
-
-    vkDestroyBuffer(context->device, context->indexBuffer, NULL);
-    vkFreeMemory(context->device, context->indexBufferMemory, NULL);
-    vkDestroyBuffer(context->device, context->vertexBuffer, NULL);
-    vkFreeMemory(context->device, context->vertexBufferMemory, NULL);
 
     for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
         vkDestroySemaphore(context->device, n_list_get_inline(context->imageAvailableSemaphores, i, VkSemaphore), NULL);
@@ -1071,12 +1036,92 @@ extern void n_graphics_cleanup(NGraphicsContext *context) {
 
     vkDestroyCommandPool(context->device, context->commandPool, NULL);
 
-    vkDestroyPipelineLayout(context->device, context->pipelineLayout, NULL);
-    vkDestroyPipeline(context->device, context->graphicsPipeline, NULL);
+    for (uint32_t i = 0; i < context->materials.count; i++) {
+        n_graphics_material_destroy(context, &n_list_get_inline(context->materials, i, NMaterial));
+    }
+    n_list_destroy(context->materials);
+
     vkDestroyRenderPass(context->device, context->renderPass, NULL);
 
     vkDestroyDevice(context->device, NULL);
     n_list_destroy(context->physicalDevices);
     vkDestroySurfaceKHR(context->instance, context->surface, NULL);
     vkDestroyInstance(context->instance, NULL);
+}
+
+extern NMaterial* n_graphics_material_create(NGraphicsContext *context, NMaterialCreateInfo createInfo) {
+    NMaterial material = {
+            .vertexDescriptor = createInfo.vertexDescriptor,
+            .meshes = n_list_create(sizeof(NMesh), 4),
+    };
+    create_descriptor_set_layout(context, &material);
+    create_graphics_pipeline(context, &material);
+
+    create_uniform_buffers(context, &material);
+    create_descriptor_pool(context, &material);
+    create_descriptor_sets(context, &material);
+
+    n_list_add(&context->materials, &material);
+    return &n_list_get_inline(context->materials, context->materials.count - 1, NMaterial);
+}
+
+extern void n_graphics_material_destroy(const NGraphicsContext *context, NMaterial *material) {
+    for (uint32_t i = 0; i < material->meshes.count; ++i) {
+        n_graphics_mesh_destroy(context, &n_list_get_inline(material->meshes, i, NMesh));
+    }
+    n_list_destroy(material->meshes);
+    n_list_destroy(material->vertexDescriptor.attributeDescriptors);
+
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+        vkDestroyBuffer(context->device, n_list_get_inline(material->uniformBuffers, i, VkBuffer), NULL);
+        vkFreeMemory(context->device, n_list_get_inline(material->uniformBuffersMemory, i, VkDeviceMemory), NULL);
+    }
+
+    n_list_destroy(material->uniformBuffers);
+    n_list_destroy(material->uniformBuffersMemory);
+    n_list_destroy(material->uniformBuffersMapped);
+
+    vkDestroyDescriptorPool(context->device, material->descriptorPool, NULL);
+    n_list_destroy(material->descriptorSets);
+    vkDestroyDescriptorSetLayout(context->device, material->descriptorSetLayout, NULL);
+
+    vkDestroyPipelineLayout(context->device, material->pipelineLayout, NULL);
+    vkDestroyPipeline(context->device, material->graphicsPipeline, NULL);
+    *material = (NMaterial){0};
+}
+
+extern NMesh *n_graphics_mesh_create(NGraphicsContext *context, NMaterial *material, NList vertices, NList indices) {
+    NMesh mesh = {0};
+    mesh.material = material;
+    mesh.vertices = vertices;
+    mesh.indices = indices;
+    create_vertex_buffer(context, &mesh);
+    create_index_buffer(context, &mesh);
+    n_list_add(&material->meshes, &mesh);
+    return &n_list_get_inline(material->meshes, material->meshes.count - 1, NMesh);
+}
+
+extern void n_graphics_mesh_destroy(NGraphicsContext *context, NMesh *mesh) {
+    vkDestroyBuffer(context->device, mesh->indexBuffer, NULL);
+    vkFreeMemory(context->device, mesh->indexBufferMemory, NULL);
+    vkDestroyBuffer(context->device, mesh->vertexBuffer, NULL);
+    vkFreeMemory(context->device, mesh->vertexBufferMemory, NULL);
+    n_list_destroy(mesh->vertices);
+    n_list_destroy(mesh->indices);
+    n_list_remove(&mesh->material->meshes, mesh);
+    *mesh = (NMesh){0};
+}
+
+extern void n_graphics_mesh_set_vertices(NGraphicsContext *context, NMesh *mesh, NList vertices) {
+    for (uint32_t i = 0; i < vertices.count; ++i) {
+        n_list_set(&mesh->vertices, i, i_n_list_get(vertices, i));
+    }
+    update_vertex_buffer(context, mesh);
+}
+
+extern void n_graphics_mesh_set_indices(NGraphicsContext *context, NMesh *mesh, NList_uint32_t indices) {
+    for (uint32_t i = 0; i < indices.count; ++i) {
+        n_list_set(&mesh->indices, i, i_n_list_get(indices, i));
+    }
+    update_index_buffer(context, mesh);
 }

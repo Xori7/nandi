@@ -83,9 +83,11 @@ void n_memory_summary(NLogger logger);
 
 #define MEMORY_DEBUG
 #ifdef MEMORY_DEBUG
+    #define n_memory_alloc_extdbg(size, func, line) n_memory_alloc_debug(size, func, line)
     #define n_memory_alloc(size) n_memory_alloc_debug(size, __func__, __LINE__)
     #define n_memory_free(pointer) n_memory_free_debug(pointer, __func__, __LINE__); pointer = NULL
 #else
+    #define i_n_memory_alloc_extdbg(size, func, line) malloc(size)
     #define n_memory_alloc(size) malloc(size)
     #define n_memory_free(pointer) free(pointer); pointer = NULL
 #endif
@@ -98,8 +100,15 @@ typedef struct {
     size_t typeSize;
 } NList;
 
-extern NList n_list_create(size_t typeSize, uint64_t capacity);
-extern NList n_list_create_filled(size_t typeSize, uint64_t count); //Creates regular list filled with 0-value elements. Essentially this function creates an array of length count.
+//Yes, I know how it looks like, but C forces me to do it in order to have any readability of "generic" lists.
+typedef NList NList_voidptr;
+typedef NList NList_uint32_t;
+typedef NList NList_NVec3f32;
+
+extern NList i_n_list_create(size_t typeSize, uint64_t capacity, const char *func, uint32_t line);
+extern NList i_n_list_create_filled(size_t typeSize, uint64_t count, const char *func, uint32_t line); //Creates regular list filled with 0-value elements. Essentially this function creates an array of length count.
+#define n_list_create(typeSize, capacity) i_n_list_create(typeSize, capacity, __func__, __LINE__)
+#define n_list_create_filled(typeSize, count) i_n_list_create_filled(typeSize, count, __func__, __LINE__)
 extern void n_list_destroy(NList list);
 extern void n_list_add(NList *list, void* value);
 extern void n_list_set(NList *list, uint64_t index, void *value);
@@ -499,8 +508,57 @@ extern void n_window_set_client_size(NWindow window, NVec2i32 size);
 
 //Graphics
 #include "vulkan/vulkan.h"
-
 #define MAX_FRAMES_IN_FLIGHT 2
+
+typedef NList NList_VkBuffer;
+typedef NList NList_VkDeviceMemory;
+typedef NList NList_VkDescriptorSet;
+typedef NList NList_VkVertexInputAttributeDescription;
+typedef NList NList_VkCommandBuffer;
+typedef NList NList_VkSemaphore;
+typedef NList NList_VkFence;
+typedef NList NList_VkFramebuffer;
+typedef NList NList_VkPhysicalDevice;
+typedef NList NList_VkImage;
+typedef NList NList_VkImageView;
+
+typedef struct i_NMaterial NMaterial;
+
+typedef struct {
+    NMaterial* material;
+    NList vertices;
+    NList_uint32_t indices;
+    VkBuffer vertexBuffer;
+    VkBuffer indexBuffer;
+    VkDeviceMemory vertexBufferMemory;
+    VkDeviceMemory indexBufferMemory;
+    NMatrix4x4 modelMatrix;
+} NMesh;
+typedef NList NList_NMesh;
+
+typedef struct {
+    uint32_t size;
+    NList_VkVertexInputAttributeDescription attributeDescriptors;
+} NVertexDescriptor;
+
+struct i_NMaterial {
+    NList_NMesh meshes;
+    VkDescriptorSetLayout descriptorSetLayout;
+    VkPipelineLayout pipelineLayout;
+    VkPipeline graphicsPipeline;
+
+    NVertexDescriptor vertexDescriptor;
+
+    NList_VkBuffer uniformBuffers;
+    NList_VkDeviceMemory uniformBuffersMemory;
+    NList_voidptr uniformBuffersMapped;
+    VkDescriptorPool descriptorPool;
+    NList_VkDescriptorSet descriptorSets;
+};
+typedef struct {
+    NVertexDescriptor vertexDescriptor;
+} NMaterialCreateInfo;
+typedef NList NList_NMaterial;
 
 typedef struct {
     NLogger logger;
@@ -510,42 +568,27 @@ typedef struct {
     VkQueue presentQueue;
     VkQueue graphicsQueue;
 
-    NList physicalDevices;
+    NList_VkPhysicalDevice physicalDevices;
     VkPhysicalDevice pickedPhysicalDevice;
     VkDevice device;
 
     VkSwapchainKHR swapChain;
-    NList swapChainImages;
-    NList swapChainImageViews;
+    NList_VkImage swapChainImages;
+    NList_VkImageView swapChainImageViews;
     VkFormat swapChainImageFormat;
     VkExtent2D swapChainExtent;
+    NList_VkFramebuffer swapChainFramebuffers;
 
     VkRenderPass renderPass;
-    VkDescriptorSetLayout descriptorSetLayout;
-    VkPipelineLayout pipelineLayout;
-    VkPipeline graphicsPipeline;
-
-    NList swapChainFramebuffers;
 
     VkCommandPool commandPool;
-    NList commandBuffers;
-
-    NList imageAvailableSemaphores;
-    NList renderFinishedSemaphores;
-    NList inFlightFences;
-
+    NList_VkCommandBuffer commandBuffers;
+    NList_VkSemaphore imageAvailableSemaphores;
+    NList_VkSemaphore renderFinishedSemaphores;
+    NList_VkFence inFlightFences;
     uint32_t currentFrame;
 
-    VkBuffer vertexBuffer;
-    VkDeviceMemory vertexBufferMemory;
-    VkBuffer indexBuffer;
-    VkDeviceMemory indexBufferMemory;
-
-    NList uniformBuffers;
-    NList uniformBuffersMemory;
-    NList uniformBuffersMapped;
-    VkDescriptorPool descriptorPool;
-    NList descriptorSets;
+    NList_NMaterial materials;
 } NGraphicsContext;
 
 typedef struct {
@@ -558,4 +601,14 @@ NList vertex_get_attribute_descriptions();
 extern NGraphicsContext n_graphics_initialize(NLogger logger, NWindow window);
 extern void n_graphics_recreate_swap_chain(NGraphicsContext *context, NWindow window);
 extern void n_graphics_cleanup(NGraphicsContext *context);
+
+extern void n_graphics_draw_frame(NGraphicsContext *context);
+
+extern NMaterial* n_graphics_material_create(NGraphicsContext *context, NMaterialCreateInfo createInfo);
+extern void n_graphics_material_destroy(const NGraphicsContext *context, NMaterial *material);
+
+extern NMesh *n_graphics_mesh_create(NGraphicsContext *context, NMaterial *material, NList vertices, NList indices);
+extern void n_graphics_mesh_destroy(NGraphicsContext *context, NMesh *mesh);
+extern void n_graphics_mesh_set_vertices(NGraphicsContext *context, NMesh *mesh, NList vertices); //Vert count must be constant!
+extern void n_graphics_mesh_set_indices(NGraphicsContext *context, NMesh *mesh, NList_uint32_t indices); //Index count must be constant!
 #endif
