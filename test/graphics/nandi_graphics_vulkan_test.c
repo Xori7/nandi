@@ -1,4 +1,10 @@
 #include "../nandi_test.h"
+#include <time.h>
+
+typedef struct {
+    NVec2f32 pos;
+    NVec3f32 color;
+} Vertex;
 
 bool running = true;
 bool windowResized = false;
@@ -8,17 +14,48 @@ void on_window_resized(NWindow window) {
 }
 
 void main_loop(NGraphicsContext *context, NWindow window) {
+    NVec3f32 camRotation = {0};
+    time_t lastTime = clock();
+    time_t currentTime = 0;
+
+    double deltaTime = 0;
     while (running) {
+        currentTime = clock();
+        deltaTime = (double)(currentTime - lastTime) / 1000.0;
+        lastTime = currentTime;
+
         n_input_update();
-        if (n_input_key_down(NKEYCODE_Q))
+        if (n_input_key_down(NKEYCODE_Q)) {
             running = false;
-        if (windowResized) {
+        }
+        else if (windowResized) {
             n_graphics_recreate_swap_chain(context, window);
             windowResized = false;
         }
-        n_graphics_draw_frame(context);
+        else {
+            if (n_input_key(NKEYCODE_Space)) {
+                context->camera.transform.position.y += 2.0f * deltaTime;
+                n_transform_update_matrix(&context->camera.transform);
+            }
+            const float rotSpeed = 20.0f;
+            if (n_input_key(NKEYCODE_D)) {
+                camRotation.y -= rotSpeed * deltaTime;
+            }
+            if (n_input_key(NKEYCODE_A)) {
+                camRotation.y += rotSpeed * deltaTime;
+            }
+            if (n_input_key(NKEYCODE_W)) {
+                camRotation.x -= rotSpeed * deltaTime;
+            }
+            if (n_input_key(NKEYCODE_S)) {
+                camRotation.x += rotSpeed * deltaTime;
+            }
+            camRotation.z = 180;
+            n_transform_set_rotation_euler(&context->camera.transform, camRotation);
+
+            n_graphics_draw_frame(context);
+        }
     }
-    vkDeviceWaitIdle(context->device);
 }
 
 void test_n_vk_graphics_initialize_creates_valid_context() {
@@ -64,7 +101,44 @@ void test_n_vk_graphics_initialize_creates_valid_context() {
     n_list_add_inline(&indices, uint32_t, 3);
     n_list_add_inline(&indices, uint32_t, 2);
 
-    NMesh* mesh = n_graphics_mesh_create(&graphics, material, vertices, indices);
+    NTransform transform = {0};
+    n_transform_set_position(&transform, (NVec3f32){ 0, 0, 0 });
+    n_transform_set_rotation_euler(&transform, (NVec3f32){ 0, 0, 0 });
+    n_transform_set_scale(&transform, (NVec3f32){ 1, 1, 1 });
+
+    for (int i = -10; i < 10; ++i) {
+        for (int j = -10; j < 10; ++j) {
+            NMesh *mesh = n_graphics_mesh_create(&graphics, material, vertices, indices);
+            n_transform_set_position(&transform, (NVec3f32) {j, i, 2});
+            mesh->matrix = transform.matrix;
+        }
+    }
+    for (int i = -10; i < 10; ++i) {
+        for (int j = -10; j < 10; ++j) {
+            NMesh *mesh = n_graphics_mesh_create(&graphics, material, vertices, indices);
+            n_transform_set_rotation_euler(&transform, (NVec3f32) {0, 90, 0});
+            n_transform_set_position(&transform, (NVec3f32) {-j, i, 2});
+            mesh->matrix = transform.matrix;
+        }
+    }
+    for (int i = -10; i < 10; ++i) {
+        for (int j = -10; j < 10; ++j) {
+            NMesh *mesh = n_graphics_mesh_create(&graphics, material, vertices, indices);
+            n_transform_set_position(&transform, (NVec3f32) {j, i, 2});
+            mesh->matrix = transform.matrix;
+        }
+    }
+    for (int i = -10; i < 10; ++i) {
+        for (int j = -10; j < 10; ++j) {
+            NMesh *mesh = n_graphics_mesh_create(&graphics, material, vertices, indices);
+            n_transform_set_position(&transform, (NVec3f32) {j, i, 2});
+            mesh->matrix = transform.matrix;
+        }
+    }
+
+    n_transform_set_position(&graphics.camera.transform, (NVec3f32) { 0, 2.0f, 0 });
+    n_transform_set_rotation_euler(&transform, (NVec3f32){ 0, 0, 0 });
+    n_transform_set_scale(&graphics.camera.transform, (NVec3f32) { 1, 1, 1 });
 
     window->onSizeChangedFunc = on_window_resized;
     main_loop(&graphics, window);

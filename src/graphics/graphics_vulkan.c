@@ -706,34 +706,6 @@ void create_uniform_buffers(NGraphicsContext *context, NMaterial *material) {
     }
 }
 
-float rotation = 180;
-NVec3f32 position = {2.0, 2.0, 2.0};
-
-void update_uniform_buffer(NGraphicsContext *context, NMesh *mesh, uint32_t currentImage) {
-    if (n_input_key(NKEYCODE_S))
-        position.x -= 0.001f;
-    if (n_input_key(NKEYCODE_W))
-        position.x += 0.001f;
-    if (n_input_key(NKEYCODE_A))
-        position.y -= 0.001f;
-    if (n_input_key(NKEYCODE_D))
-        position.y += 0.001f;
-
-    UniformBufferObject ubo = {0};
-    rotation += 1.0f;
-    glm_mat4_identity(&ubo.model);
-    NVec3f32 axis = {0, 0, 1};
-    glm_rotate(&ubo.model, glm_rad(rotation), &axis);
-    glm_lookat(&position, &(NVec3f32) {position.x - 1, position.y - 1, position.z - 1}, &(NVec3f32) {0.0f, 0.0f, 1.0f}, &ubo.view);
-    glm_perspective(glm_rad(45.0f), (float)context->swapChainExtent.width / (float)context->swapChainExtent.height, 0.1f, 10.0f, &ubo.proj);
-    ubo.proj.m[1][1] *= -1;
-
-    NMatrix4x4 mat = {0};
-    glm_mat4_mul(&ubo.model, &ubo.proj, &mat);
-    glm_mat4_mul(&mat, &ubo.view, &mesh->modelMatrix);
-    memcpy(n_list_get_inline(mesh->material->uniformBuffersMapped, currentImage, void*), &ubo, sizeof(ubo));
-}
-
 void create_descriptor_pool(NGraphicsContext *context, NMaterial *material) {
     VkDescriptorPoolSize poolSize = {
             .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -889,7 +861,10 @@ void record_command_buffer(NGraphicsContext *context, VkCommandBuffer commandBuf
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, material.pipelineLayout, 0, 1,
                                     &n_list_get_inline(material.descriptorSets, context->currentFrame, VkDescriptorSet), 0, NULL);
 
-            update_uniform_buffer(context, &mesh, context->currentFrame); //TODO
+            //update_uniform_buffer(context, &mesh, context->currentFrame); //TODO
+            NMatrix4x4 matrix;
+            glm_mat4_mul((vec4*)&context->camera.viewProjectionMatrix, (vec4*)&mesh.matrix, (vec4*)&matrix);
+            vkCmdPushConstants(commandBuffer, material.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(NMatrix4x4), &matrix);
             vkCmdDrawIndexed(commandBuffer, mesh.indices.count, 1, 0, 0, 0);
         }
     }
@@ -926,7 +901,24 @@ void create_sync_objects(NGraphicsContext *context) {
     }
 }
 
+void update_camera_matrix(NGraphicsContext *context) {
+    NMatrix4x4 view;
+    NQuaternion q = context->camera.transform.rotation;
+    glm_look((float*)&context->camera.transform.position, (float*)&(NVec3f32) {
+            .x = 2 * (q.x*q.z + q.w*q.y),
+            .y = 2 * (q.y*q.z - q.w*q.x),
+            .z = 1 - 2 * (q.x*q.x + q.y*q.y)},(float*)&(NVec3f32) {0, 1, 0}, (vec4*)&view);
+
+    NMatrix4x4 projection;
+    glm_mat4_identity((vec4*)&projection);
+    glm_perspective(glm_rad(context->camera.fov), (float)context->swapChainExtent.width / (float)context->swapChainExtent.height, context->camera.nearPlane, context->camera.farPlane, (vec4*)&projection);
+    projection.m[1][1] *= -1;
+    glm_mat4_mul((vec4*)&projection, (vec4*)&view, (vec4*)&context->camera.viewProjectionMatrix);
+}
+
 extern void n_graphics_draw_frame(NGraphicsContext *context) {
+    update_camera_matrix(context);
+
     vkWaitForFences(context->device, 1, &n_list_get_inline(context->inFlightFences, context->currentFrame, VkFence), VK_TRUE, UINT64_MAX);
     vkResetFences(context->device, 1, &n_list_get_inline(context->inFlightFences, context->currentFrame, VkFence));
 
@@ -972,6 +964,7 @@ extern void n_graphics_draw_frame(NGraphicsContext *context) {
     vkQueuePresentKHR(context->presentQueue, &presentInfo);
 
     context->currentFrame = (context->currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+    vkDeviceWaitIdle(context->device);
 }
 
 void cleanup_swap_chain(NGraphicsContext *context) {
@@ -1017,6 +1010,12 @@ extern NGraphicsContext n_graphics_initialize(NLogger logger, NWindow window) {
     create_sync_objects(&context);
 
     context.materials = n_list_create(sizeof(NMaterial), 4);
+
+    context.camera = (NCamera){
+            .nearPlane = 0.01f,
+            .farPlane = 1000.0f,
+            .fov = 60.0f,
+    };
 
     return context;
 }
@@ -1065,7 +1064,7 @@ extern NMaterial* n_graphics_material_create(NGraphicsContext *context, NMateria
     return &n_list_get_inline(context->materials, context->materials.count - 1, NMaterial);
 }
 
-extern void n_graphics_material_destroy(const NGraphicsContext *context, NMaterial *material) {
+extern void n_graphics_material_destroy(NGraphicsContext *context, NMaterial *material) {
     for (uint32_t i = 0; i < material->meshes.count; ++i) {
         n_graphics_mesh_destroy(context, &n_list_get_inline(material->meshes, i, NMesh));
     }
@@ -1106,22 +1105,6 @@ extern void n_graphics_mesh_destroy(NGraphicsContext *context, NMesh *mesh) {
     vkFreeMemory(context->device, mesh->indexBufferMemory, NULL);
     vkDestroyBuffer(context->device, mesh->vertexBuffer, NULL);
     vkFreeMemory(context->device, mesh->vertexBufferMemory, NULL);
-    n_list_destroy(mesh->vertices);
-    n_list_destroy(mesh->indices);
     n_list_remove(&mesh->material->meshes, mesh);
     *mesh = (NMesh){0};
-}
-
-extern void n_graphics_mesh_set_vertices(NGraphicsContext *context, NMesh *mesh, NList vertices) {
-    for (uint32_t i = 0; i < vertices.count; ++i) {
-        n_list_set(&mesh->vertices, i, i_n_list_get(vertices, i));
-    }
-    update_vertex_buffer(context, mesh);
-}
-
-extern void n_graphics_mesh_set_indices(NGraphicsContext *context, NMesh *mesh, NList_uint32_t indices) {
-    for (uint32_t i = 0; i < indices.count; ++i) {
-        n_list_set(&mesh->indices, i, i_n_list_get(indices, i));
-    }
-    update_index_buffer(context, mesh);
 }

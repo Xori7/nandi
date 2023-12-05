@@ -222,6 +222,24 @@ typedef struct {
     mat4 m;
 } NMatrix4x4;
 
+typedef union {
+    struct { float x, y, z, w; };
+    versor v;
+}NQuaternion;
+
+typedef struct {
+    NVec3f32 position;
+    NQuaternion rotation;
+    NVec3f32 scale;
+    NMatrix4x4 matrix;
+} NTransform;
+
+extern void n_transform_update_matrix(NTransform *transform);
+extern void n_transform_set_position(NTransform *transform, NVec3f32 position);
+extern void n_transform_set_rotation(NTransform *transform, NQuaternion rotation);
+extern void n_transform_set_rotation_euler(NTransform *transform, NVec3f32 rotation);
+extern void n_transform_set_scale(NTransform *transform, NVec3f32 scale);
+
 extern uint32_t n_math_clamp_u32(uint32_t value, uint32_t min, uint32_t max);
 
 // Input
@@ -532,7 +550,7 @@ typedef struct {
     VkBuffer indexBuffer;
     VkDeviceMemory vertexBufferMemory;
     VkDeviceMemory indexBufferMemory;
-    NMatrix4x4 modelMatrix;
+    NMatrix4x4 matrix;
 } NMesh;
 typedef NList NList_NMesh;
 
@@ -559,6 +577,14 @@ typedef struct {
     NVertexDescriptor vertexDescriptor;
 } NMaterialCreateInfo;
 typedef NList NList_NMaterial;
+
+typedef struct {
+    NTransform transform;
+    NMatrix4x4 viewProjectionMatrix;
+    float fov;
+    float nearPlane;
+    float farPlane;
+} NCamera;
 
 typedef struct {
     NLogger logger;
@@ -589,14 +615,8 @@ typedef struct {
     uint32_t currentFrame;
 
     NList_NMaterial materials;
+    NCamera camera;
 } NGraphicsContext;
-
-typedef struct {
-    NVec2f32 pos;
-    NVec3f32 color;
-} Vertex;
-VkVertexInputBindingDescription vertex_get_binding_description();
-NList vertex_get_attribute_descriptions();
 
 extern NGraphicsContext n_graphics_initialize(NLogger logger, NWindow window);
 extern void n_graphics_recreate_swap_chain(NGraphicsContext *context, NWindow window);
@@ -605,10 +625,8 @@ extern void n_graphics_cleanup(NGraphicsContext *context);
 extern void n_graphics_draw_frame(NGraphicsContext *context);
 
 extern NMaterial* n_graphics_material_create(NGraphicsContext *context, NMaterialCreateInfo createInfo);
-extern void n_graphics_material_destroy(const NGraphicsContext *context, NMaterial *material);
+extern void n_graphics_material_destroy(NGraphicsContext *context, NMaterial *material);
 
 extern NMesh *n_graphics_mesh_create(NGraphicsContext *context, NMaterial *material, NList vertices, NList indices);
 extern void n_graphics_mesh_destroy(NGraphicsContext *context, NMesh *mesh);
-extern void n_graphics_mesh_set_vertices(NGraphicsContext *context, NMesh *mesh, NList vertices); //Vert count must be constant!
-extern void n_graphics_mesh_set_indices(NGraphicsContext *context, NMesh *mesh, NList_uint32_t indices); //Index count must be constant!
 #endif
