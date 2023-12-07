@@ -6,7 +6,9 @@
 #include <malloc.h>
 #include <stdatomic.h>
 #include <string.h>
+#define CGLM_FORCE_LEFT_HANDED 1
 #include <cglm/cglm.h>
+#include <stb_image.h>
 
 // CString
 char *n_internal_cstring_format_args(const char *format, va_list args);
@@ -33,7 +35,7 @@ static char *logLevelNames[] = {
         "INFO ",
         "WARN ",
         "ERROR",
-        "TEST"
+        "TEST "
 };
 #define ANSI_COLOR_RED     "\x1b[91m"
 #define ANSI_COLOR_GREEN   "\x1b[92m"
@@ -41,7 +43,7 @@ static char *logLevelNames[] = {
 #define ANSI_COLOR_BLUE    "\x1b[94m"
 #define ANSI_COLOR_MAGENTA "\x1b[95m"
 #define ANSI_COLOR_CYAN    "\x1b[96m"
-#define ANSI_COLOR_WHITE    "\x1b[97m"
+#define ANSI_COLOR_WHITE   "\x1b[97m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
 static char *logLevelConsoleColors[] = {
@@ -555,6 +557,16 @@ typedef struct {
 typedef NList NList_NMesh;
 
 typedef struct {
+    int width;
+    int height;
+    int channels;
+    VkImage image;
+    VkDeviceMemory imageMemory;
+    VkImageView imageView;
+    VkSampler sampler;
+} NTexture;
+
+typedef struct {
     uint32_t size;
     NList_VkVertexInputAttributeDescription attributeDescriptors;
 } NVertexDescriptor;
@@ -572,9 +584,11 @@ struct i_NMaterial {
     NList_voidptr uniformBuffersMapped;
     VkDescriptorPool descriptorPool;
     NList_VkDescriptorSet descriptorSets;
+    NTexture texture;
 };
 typedef struct {
     NVertexDescriptor vertexDescriptor;
+    NTexture texture;
 } NMaterialCreateInfo;
 typedef NList NList_NMaterial;
 
@@ -629,4 +643,7 @@ extern void n_graphics_material_destroy(NGraphicsContext *context, NMaterial *ma
 
 extern NMesh *n_graphics_mesh_create(NGraphicsContext *context, NMaterial *material, NList vertices, NList indices);
 extern void n_graphics_mesh_destroy(NGraphicsContext *context, NMesh *mesh);
+
+extern NTexture n_graphics_texture_create(NGraphicsContext *context, const char *path);
+extern void n_graphics_texture_destroy(NGraphicsContext *context, NTexture texture);
 #endif

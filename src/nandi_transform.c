@@ -37,7 +37,6 @@ extern void n_transform_set_rotation_euler(NTransform *transform, NVec3f32 rotat
     glm_quat((float*)&qz, glm_rad(rotation.z), 0, 0, 1);
     glm_quat_mul((float*)&qy, (float*)&qx, (float*)&qs);
     glm_quat_mul((float*)&qs, (float*)&qz, (float*)&transform->rotation);
-    printf("rotation: %3.2f %3.2f %3.2f, transformRotation: %3.2f, %3.2f, %3.2f, %3.2f\n", rotation.x, rotation.y, rotation.z, transform->rotation.x, transform->rotation.y, transform->rotation.z, transform->rotation.w);
     n_transform_update_matrix(transform);
 }
 

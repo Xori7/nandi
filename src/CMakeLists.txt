@@ -7,6 +7,7 @@ target_sources(nandi PRIVATE
         nandi_cstring.c
         nandi_math.c
         nandi_transform.c
+        nandi_stb.c
         memory/nandi_memory.c
         memory/nandi_list.c
         graphics/graphics_vulkan.c)

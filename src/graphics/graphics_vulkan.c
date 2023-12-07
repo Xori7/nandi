@@ -131,7 +131,7 @@ void create_logical_device(NGraphicsContext *context) {
     }
 
     VkPhysicalDeviceFeatures deviceFeatures = {
-            VK_FALSE
+            .samplerAnisotropy = VK_TRUE
     };
     vkGetPhysicalDeviceFeatures(context->pickedPhysicalDevice, &deviceFeatures);
     VkDeviceCreateInfo createInfo = {
@@ -257,28 +257,32 @@ void create_swap_chain(NGraphicsContext *context, NWindow window) {
     context->swapChainExtent = extent;
 }
 
+VkImageView create_image_view(NGraphicsContext *context, VkImage image, VkFormat format) {
+    VkImageViewCreateInfo viewInfo = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image = image,
+            .viewType = VK_IMAGE_VIEW_TYPE_2D,
+            .format = format,
+            .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .subresourceRange.baseMipLevel = 0,
+            .subresourceRange.levelCount = 1,
+            .subresourceRange.baseArrayLayer = 0,
+            .subresourceRange.layerCount = 1
+    };
+    VkImageView imageView;
+    if (vkCreateImageView(context->device, &viewInfo, NULL, &imageView) != VK_SUCCESS) {
+        n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to create image view!");
+        exit(-1);
+    }
+
+    return imageView;
+}
+
 void create_image_views(NGraphicsContext *context) {
     context->swapChainImageViews = n_list_create_filled(sizeof(VkImageView), context->swapChainImages.count);
     for (uint32_t i = 0; i < context->swapChainImageViews.count; i++) {
-        VkImageViewCreateInfo createInfo = {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                .image = n_list_get_inline(context->swapChainImages, i, VkImage),
-                .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                .format = context->swapChainImageFormat,
-                .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
-                .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .subresourceRange.baseMipLevel = 0,
-                .subresourceRange.levelCount = 1,
-                .subresourceRange.baseArrayLayer = 0,
-                .subresourceRange.layerCount = 1
-        };
-        if (vkCreateImageView(context->device, &createInfo, NULL, &n_list_get_inline(context->swapChainImageViews, i, VkImageView)) != VK_SUCCESS) {
-            n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to create image views!");
-            exit(-1);
-        }
+        n_list_set_inline(&context->swapChainImageViews, i, VkImageView,
+                          create_image_view(context, n_list_get_inline(context->swapChainImages, i, VkImage), context->swapChainImageFormat));
     }
 }
 
@@ -398,7 +402,7 @@ void create_graphics_pipeline(NGraphicsContext *context, NMaterial *material) {
             .vertexBindingDescriptionCount = 1,
             .pVertexBindingDescriptions = &bindingDescription,
             .vertexAttributeDescriptionCount = attributeDescription.count,
-            .pVertexAttributeDescriptions = (VkVertexInputAttributeDescription *) attributeDescription.elements
+            .pVertexAttributeDescriptions = (VkVertexInputAttributeDescription*)attributeDescription.elements
     };
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly = {
@@ -430,7 +434,7 @@ void create_graphics_pipeline(NGraphicsContext *context, NMaterial *material) {
             .rasterizerDiscardEnable = VK_FALSE,
             .polygonMode = VK_POLYGON_MODE_FILL,
             .lineWidth = 1.0f,
-            .cullMode = VK_CULL_MODE_NONE,// VK_CULL_MODE_BACK_BIT,
+            .cullMode = VK_CULL_MODE_BACK_BIT,
             .frontFace = VK_FRONT_FACE_CLOCKWISE,
             .depthBiasEnable = VK_FALSE,
             .depthBiasConstantFactor = 0.0f,
@@ -472,12 +476,18 @@ void create_graphics_pipeline(NGraphicsContext *context, NMaterial *material) {
             .blendConstants[3] = 0.0f,
     };
 
+    VkPushConstantRange pushConstantRange = {
+            .offset = 0,
+            .size = sizeof(NMatrix4x4),
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+    };
+
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
             .setLayoutCount = 1,
             .pSetLayouts = &material->descriptorSetLayout,
-            .pushConstantRangeCount = 0,
-            .pPushConstantRanges = NULL
+            .pushConstantRangeCount = 1,
+            .pPushConstantRanges = &pushConstantRange
     };
 
     if (vkCreatePipelineLayout(context->device, &pipelineLayoutInfo, NULL, &material->pipelineLayout) != VK_SUCCESS) {
@@ -596,28 +606,26 @@ void create_buffer(NGraphicsContext *context, VkDeviceSize size, VkBufferUsageFl
     vkBindBufferMemory(context->device, *buffer, *bufferMemory, 0);
 }
 
-void copy_buffer(NGraphicsContext *context, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
-    VkCommandBufferAllocateInfo allocateInfo = {
+VkCommandBuffer begin_single_time_commands(NGraphicsContext *context) {
+    VkCommandBufferAllocateInfo allocInfo = {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
             .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
             .commandPool = context->commandPool,
             .commandBufferCount = 1
     };
-
     VkCommandBuffer commandBuffer;
-    vkAllocateCommandBuffers(context->device, &allocateInfo, &commandBuffer);
+    vkAllocateCommandBuffers(context->device, &allocInfo, &commandBuffer);
 
     VkCommandBufferBeginInfo beginInfo = {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
             .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
     };
     vkBeginCommandBuffer(commandBuffer, &beginInfo);
-    VkBufferCopy copyRegion = {
-            .srcOffset = 0,
-            .dstOffset = 0,
-            .size = size
-    };
-    vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+    return commandBuffer;
+}
+
+void end_single_time_commands(NGraphicsContext *context, VkCommandBuffer commandBuffer) {
     vkEndCommandBuffer(commandBuffer);
 
     VkSubmitInfo submitInfo = {
@@ -628,7 +636,19 @@ void copy_buffer(NGraphicsContext *context, VkBuffer srcBuffer, VkBuffer dstBuff
 
     vkQueueSubmit(context->graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
     vkQueueWaitIdle(context->graphicsQueue);
+
     vkFreeCommandBuffers(context->device, context->commandPool, 1, &commandBuffer);
+}
+
+void copy_buffer(NGraphicsContext *context, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
+    VkCommandBuffer commandBuffer = begin_single_time_commands(context);
+
+    VkBufferCopy copyRegion = {
+            .size = size
+    };
+    vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+    end_single_time_commands(context, commandBuffer);
 }
 
 void update_vertex_buffer(NGraphicsContext *context, NMesh *mesh) {
@@ -649,6 +669,7 @@ void update_vertex_buffer(NGraphicsContext *context, NMesh *mesh) {
     vkDestroyBuffer(context->device, stagingBuffer, NULL);
     vkFreeMemory(context->device, stagingBufferMemory, NULL);
 }
+
 void create_vertex_buffer(NGraphicsContext *context, NMesh *mesh) {
     VkDeviceSize bufferSize = mesh->material->vertexDescriptor.size * mesh->vertices.count;
     create_buffer(context, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
@@ -675,6 +696,7 @@ void update_index_buffer(NGraphicsContext *context, NMesh *mesh) {
     vkDestroyBuffer(context->device, stagingBuffer, NULL);
     vkFreeMemory(context->device, stagingBufferMemory, NULL);
 }
+
 void create_index_buffer(NGraphicsContext *context, NMesh *mesh) {
     VkDeviceSize bufferSize = sizeof(uint32_t) * mesh->indices.count;
     create_buffer(context, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
@@ -707,15 +729,21 @@ void create_uniform_buffers(NGraphicsContext *context, NMaterial *material) {
 }
 
 void create_descriptor_pool(NGraphicsContext *context, NMaterial *material) {
-    VkDescriptorPoolSize poolSize = {
-            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .descriptorCount = MAX_FRAMES_IN_FLIGHT
+    VkDescriptorPoolSize poolSizes[2] = {
+            {
+                    .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                    .descriptorCount = MAX_FRAMES_IN_FLIGHT
+            },
+            {
+                    .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .descriptorCount = MAX_FRAMES_IN_FLIGHT
+            }
     };
 
     VkDescriptorPoolCreateInfo poolInfo = {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-            .poolSizeCount = 1,
-            .pPoolSizes = &poolSize,
+            .poolSizeCount = 2,
+            .pPoolSizes = (VkDescriptorPoolSize*)&poolSizes,
             .maxSets = MAX_FRAMES_IN_FLIGHT
     };
 
@@ -735,11 +763,11 @@ void create_descriptor_sets(NGraphicsContext *context, NMaterial *material) {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
             .descriptorPool = material->descriptorPool,
             .descriptorSetCount = MAX_FRAMES_IN_FLIGHT,
-            .pSetLayouts = (VkDescriptorSetLayout *) layouts.elements
+            .pSetLayouts = (VkDescriptorSetLayout*)layouts.elements
     };
 
     material->descriptorSets = n_list_create_filled(sizeof(VkDescriptorSet), MAX_FRAMES_IN_FLIGHT);
-    if (vkAllocateDescriptorSets(context->device, &allocInfo, (VkDescriptorSet*)material->descriptorSets.elements) != VK_SUCCESS) {
+    if (vkAllocateDescriptorSets(context->device, &allocInfo, (VkDescriptorSet *) material->descriptorSets.elements) != VK_SUCCESS) {
         n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to allocate descriptor sets!");
         exit(-1);
     }
@@ -750,18 +778,36 @@ void create_descriptor_sets(NGraphicsContext *context, NMaterial *material) {
                 .offset = 0,
                 .range = sizeof(UniformBufferObject)
         };
-        VkWriteDescriptorSet descriptorWrite = {
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = n_list_get_inline(material->descriptorSets, i, VkDescriptorSet),
-                .dstBinding = 0,
-                .dstArrayElement = 0,
-                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                .descriptorCount = 1,
-                .pBufferInfo = &bufferInfo,
-                .pImageInfo = NULL,
-                .pTexelBufferView = NULL
+        VkDescriptorImageInfo imageInfo = {
+                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                .imageView = material->texture.imageView,
+                .sampler = material->texture.sampler
         };
-        vkUpdateDescriptorSets(context->device, 1, &descriptorWrite, 0, NULL);
+        VkWriteDescriptorSet descriptorWriters[2] = {
+                {
+                        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                        .dstSet = n_list_get_inline(material->descriptorSets, i, VkDescriptorSet),
+                        .dstBinding = 0,
+                        .dstArrayElement = 0,
+                        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                        .descriptorCount = 1,
+                        .pBufferInfo = &bufferInfo,
+                        .pImageInfo = NULL,
+                        .pTexelBufferView = NULL
+                },
+                {
+                        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                        .dstSet = n_list_get_inline(material->descriptorSets, i, VkDescriptorSet),
+                        .dstBinding = 1,
+                        .dstArrayElement = 0,
+                        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                        .descriptorCount = 1,
+                        .pBufferInfo = NULL,
+                        .pImageInfo = &imageInfo,
+                        .pTexelBufferView = NULL
+                }
+        };
+        vkUpdateDescriptorSets(context->device, 2, (VkWriteDescriptorSet*)&descriptorWriters, 0, NULL);
     }
 
     n_list_destroy(layouts);
@@ -775,11 +821,20 @@ void create_descriptor_set_layout(NGraphicsContext *context, NMaterial *material
             .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
             .pImmutableSamplers = NULL
     };
+    VkDescriptorSetLayoutBinding samplerLayoutBinding = {
+            .binding = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .pImmutableSamplers = NULL
+    };
+
+    VkDescriptorSetLayoutBinding bindings[2] = {uboLayoutBinding, samplerLayoutBinding};
 
     VkDescriptorSetLayoutCreateInfo layoutInfo = {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .bindingCount = 1,
-            .pBindings = &uboLayoutBinding
+            .bindingCount = 2,
+            .pBindings = (VkDescriptorSetLayoutBinding*)&bindings
     };
 
     if (vkCreateDescriptorSetLayout(context->device, &layoutInfo, NULL, &material->descriptorSetLayout) != VK_SUCCESS) {
@@ -863,7 +918,7 @@ void record_command_buffer(NGraphicsContext *context, VkCommandBuffer commandBuf
 
             //update_uniform_buffer(context, &mesh, context->currentFrame); //TODO
             NMatrix4x4 matrix;
-            glm_mat4_mul((vec4*)&context->camera.viewProjectionMatrix, (vec4*)&mesh.matrix, (vec4*)&matrix);
+            glm_mat4_mul((vec4 *) &context->camera.viewProjectionMatrix, (vec4 *) &mesh.matrix, (vec4 *) &matrix);
             vkCmdPushConstants(commandBuffer, material.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(NMatrix4x4), &matrix);
             vkCmdDrawIndexed(commandBuffer, mesh.indices.count, 1, 0, 0, 0);
         }
@@ -904,16 +959,17 @@ void create_sync_objects(NGraphicsContext *context) {
 void update_camera_matrix(NGraphicsContext *context) {
     NMatrix4x4 view;
     NQuaternion q = context->camera.transform.rotation;
-    glm_look((float*)&context->camera.transform.position, (float*)&(NVec3f32) {
-            .x = 2 * (q.x*q.z + q.w*q.y),
-            .y = 2 * (q.y*q.z - q.w*q.x),
-            .z = 1 - 2 * (q.x*q.x + q.y*q.y)},(float*)&(NVec3f32) {0, 1, 0}, (vec4*)&view);
+    glm_look((float *) &context->camera.transform.position, (float *) &(NVec3f32) {
+            .x = 2 * (q.x * q.z + q.w * q.y),
+            .y = 2 * (q.y * q.z - q.w * q.x),
+            .z = 1 - 2 * (q.x * q.x + q.y * q.y)}, (float *) &(NVec3f32) {0, 1, 0}, (vec4 *) &view);
 
     NMatrix4x4 projection;
-    glm_mat4_identity((vec4*)&projection);
-    glm_perspective(glm_rad(context->camera.fov), (float)context->swapChainExtent.width / (float)context->swapChainExtent.height, context->camera.nearPlane, context->camera.farPlane, (vec4*)&projection);
+    glm_mat4_identity((vec4 *) &projection);
+    glm_perspective(glm_rad(context->camera.fov), (float) context->swapChainExtent.width / (float) context->swapChainExtent.height,
+                    context->camera.nearPlane, context->camera.farPlane, (vec4 *) &projection);
     projection.m[1][1] *= -1;
-    glm_mat4_mul((vec4*)&projection, (vec4*)&view, (vec4*)&context->camera.viewProjectionMatrix);
+    glm_mat4_mul((vec4 *) &projection, (vec4 *) &view, (vec4 *) &context->camera.viewProjectionMatrix);
 }
 
 extern void n_graphics_draw_frame(NGraphicsContext *context) {
@@ -1011,7 +1067,7 @@ extern NGraphicsContext n_graphics_initialize(NLogger logger, NWindow window) {
 
     context.materials = n_list_create(sizeof(NMaterial), 4);
 
-    context.camera = (NCamera){
+    context.camera = (NCamera) {
             .nearPlane = 0.01f,
             .farPlane = 1000.0f,
             .fov = 60.0f,
@@ -1048,10 +1104,11 @@ extern void n_graphics_cleanup(NGraphicsContext *context) {
     vkDestroyInstance(context->instance, NULL);
 }
 
-extern NMaterial* n_graphics_material_create(NGraphicsContext *context, NMaterialCreateInfo createInfo) {
+extern NMaterial *n_graphics_material_create(NGraphicsContext *context, NMaterialCreateInfo createInfo) {
     NMaterial material = {
             .vertexDescriptor = createInfo.vertexDescriptor,
             .meshes = n_list_create(sizeof(NMesh), 4),
+            .texture = createInfo.texture
     };
     create_descriptor_set_layout(context, &material);
     create_graphics_pipeline(context, &material);
@@ -1065,8 +1122,9 @@ extern NMaterial* n_graphics_material_create(NGraphicsContext *context, NMateria
 }
 
 extern void n_graphics_material_destroy(NGraphicsContext *context, NMaterial *material) {
-    for (uint32_t i = 0; i < material->meshes.count; ++i) {
-        n_graphics_mesh_destroy(context, &n_list_get_inline(material->meshes, i, NMesh));
+    for (int32_t i = material->meshes.count - 1; i >= 0; i--) {
+        n_graphics_mesh_destroy(context, &n_list_get_inline(material->meshes, i,
+                                                            NMesh)); //TODO: think about destroying meshes when destroying material. Maybe some default material (magenta) or something
     }
     n_list_destroy(material->meshes);
     n_list_destroy(material->vertexDescriptor.attributeDescriptors);
@@ -1086,7 +1144,7 @@ extern void n_graphics_material_destroy(NGraphicsContext *context, NMaterial *ma
 
     vkDestroyPipelineLayout(context->device, material->pipelineLayout, NULL);
     vkDestroyPipeline(context->device, material->graphicsPipeline, NULL);
-    *material = (NMaterial){0};
+    *material = (NMaterial) {0};
 }
 
 extern NMesh *n_graphics_mesh_create(NGraphicsContext *context, NMaterial *material, NList vertices, NList indices) {
@@ -1106,5 +1164,203 @@ extern void n_graphics_mesh_destroy(NGraphicsContext *context, NMesh *mesh) {
     vkDestroyBuffer(context->device, mesh->vertexBuffer, NULL);
     vkFreeMemory(context->device, mesh->vertexBufferMemory, NULL);
     n_list_remove(&mesh->material->meshes, mesh);
-    *mesh = (NMesh){0};
+    *mesh = (NMesh) {0};
+}
+
+void create_image(NGraphicsContext *context, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
+                  VkMemoryPropertyFlags properties, VkImage *image, VkDeviceMemory *imageMemory) {
+    VkImageCreateInfo imageInfo = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+            .imageType = VK_IMAGE_TYPE_2D,
+            .extent.width = width,
+            .extent.height = height,
+            .extent.depth = 1,
+            .mipLevels = 1,
+            .arrayLayers = 1,
+            .format = format,
+            .tiling = tiling,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .usage = usage,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE
+    };
+
+    if (vkCreateImage(context->device, &imageInfo, NULL, image) != VK_SUCCESS) {
+        n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to crate image!");
+        exit(-1);
+    }
+
+    VkMemoryRequirements memRequirements;
+    vkGetImageMemoryRequirements(context->device, *image, &memRequirements);
+
+    VkMemoryAllocateInfo allocInfo = {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            .allocationSize = memRequirements.size,
+            .memoryTypeIndex = find_memory_type(context, memRequirements.memoryTypeBits, properties)
+    };
+
+    if (vkAllocateMemory(context->device, &allocInfo, NULL, imageMemory) != VK_SUCCESS) {
+        n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to allocate image memory!");
+        exit(-1);
+    }
+    vkBindImageMemory(context->device, *image, *imageMemory, 0);
+}
+
+void transition_image_layout(NGraphicsContext *context, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
+    VkCommandBuffer commandBuffer = begin_single_time_commands(context);
+    VkImageMemoryBarrier barrier = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .oldLayout = oldLayout,
+            .newLayout = newLayout,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = image,
+            .subresourceRange = {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1
+            },
+            .srcAccessMask = 0, //TODO
+            .dstAccessMask = 0  //TODO
+    };
+    VkPipelineStageFlags sourceStage;
+    VkPipelineStageFlags destinationStage;
+
+    if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+        sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    } else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    } else {
+        n_logger_log(context->logger, LOGLEVEL_ERROR, "Unsupported layout transition!");
+        exit(-1);
+    }
+
+    vkCmdPipelineBarrier(
+            commandBuffer,
+            sourceStage, destinationStage,
+            0,
+            0, NULL,
+            0, NULL,
+            1, &barrier
+    );
+    end_single_time_commands(context, commandBuffer);
+}
+
+void copy_buffer_to_image(NGraphicsContext *context, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
+    VkCommandBuffer commandBuffer = begin_single_time_commands(context);
+
+    VkBufferImageCopy region = {
+            .bufferOffset = 0,
+            .bufferRowLength = 0,
+            .bufferImageHeight = 0,
+
+            .imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .imageSubresource.mipLevel = 0,
+            .imageSubresource.baseArrayLayer = 0,
+            .imageSubresource.layerCount = 1,
+
+            .imageOffset = {0, 0, 0},
+            .imageExtent = {
+                    width,
+                    height,
+                    1
+            }
+    };
+    vkCmdCopyBufferToImage(
+            commandBuffer,
+            buffer,
+            image,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1,
+            &region
+    );
+    end_single_time_commands(context, commandBuffer);
+}
+
+VkSampler create_texture_sampler(NGraphicsContext *context) {
+    VkPhysicalDeviceProperties properties = {0};
+    vkGetPhysicalDeviceProperties(context->pickedPhysicalDevice, &properties);
+
+    VkSamplerCreateInfo samplerInfo = {
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            .magFilter = VK_FILTER_LINEAR,
+            .minFilter = VK_FILTER_LINEAR,
+            .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .anisotropyEnable = VK_TRUE,
+            .maxAnisotropy = properties.limits.maxSamplerAnisotropy,
+            .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+            .unnormalizedCoordinates = VK_FALSE,
+            .compareEnable = VK_FALSE,
+            .compareOp = VK_COMPARE_OP_ALWAYS,
+            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+            .mipLodBias = 0.0f,
+            .minLod = 0.0f,
+            .maxLod = 0.0f
+    };
+
+    VkSampler sampler;
+    if (vkCreateSampler(context->device, &samplerInfo, NULL, &sampler) != VK_SUCCESS) {
+        n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to create texture sampler!");
+        exit(-1);
+    }
+    return sampler;
+}
+
+extern NTexture n_graphics_texture_create(NGraphicsContext *context, const char *path) {
+    NTexture texture = {0};
+    stbi_uc *pixels = stbi_load(path, &texture.width, &texture.height, &texture.channels, STBI_rgb_alpha);
+    VkDeviceSize imageSize = texture.width * texture.height * 4;
+
+    if (!pixels) {
+        n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to load texture image!");
+        exit(-1);
+    }
+
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+    create_buffer(context, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                  &stagingBuffer, &stagingBufferMemory);
+
+    void *data;
+    vkMapMemory(context->device, stagingBufferMemory, 0, imageSize, 0, &data);
+    memcpy(data, pixels, imageSize);
+    vkUnmapMemory(context->device, stagingBufferMemory);
+
+    stbi_image_free(pixels);
+
+    create_image(context, texture.width, texture.height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
+                 VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &texture.image, &texture.imageMemory);
+
+    transition_image_layout(context, texture.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    copy_buffer_to_image(context, stagingBuffer, texture.image, texture.width, texture.height);
+    transition_image_layout(context, texture.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    vkDestroyBuffer(context->device, stagingBuffer, NULL);
+    vkFreeMemory(context->device, stagingBufferMemory, NULL);
+
+    texture.imageView = create_image_view(context, texture.image, VK_FORMAT_R8G8B8A8_SRGB);
+    texture.sampler = create_texture_sampler(context);
+
+    return texture;
+}
+
+extern void n_graphics_texture_destroy(NGraphicsContext *context, NTexture texture) {
+    vkDestroySampler(context->device, texture.sampler, NULL);
+    vkDestroyImageView(context->device, texture.imageView, NULL);
+    vkDestroyImage(context->device, texture.image, NULL);
+    vkFreeMemory(context->device, texture.imageMemory, NULL);
 }
