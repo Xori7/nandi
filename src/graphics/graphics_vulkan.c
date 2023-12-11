@@ -257,13 +257,13 @@ void create_swap_chain(NGraphicsContext *context, NWindow window) {
     context->swapChainExtent = extent;
 }
 
-VkImageView create_image_view(NGraphicsContext *context, VkImage image, VkFormat format) {
+VkImageView create_image_view(NGraphicsContext *context, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) {
     VkImageViewCreateInfo viewInfo = {
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .image = image,
             .viewType = VK_IMAGE_VIEW_TYPE_2D,
             .format = format,
-            .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .subresourceRange.aspectMask = aspectFlags,
             .subresourceRange.baseMipLevel = 0,
             .subresourceRange.levelCount = 1,
             .subresourceRange.baseArrayLayer = 0,
@@ -282,7 +282,7 @@ void create_image_views(NGraphicsContext *context) {
     context->swapChainImageViews = n_list_create_filled(sizeof(VkImageView), context->swapChainImages.count);
     for (uint32_t i = 0; i < context->swapChainImageViews.count; i++) {
         n_list_set_inline(&context->swapChainImageViews, i, VkImageView,
-                          create_image_view(context, n_list_get_inline(context->swapChainImages, i, VkImage), context->swapChainImageFormat));
+                          create_image_view(context, n_list_get_inline(context->swapChainImages, i, VkImage), context->swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT));
     }
 }
 
@@ -329,31 +329,48 @@ void create_render_pass(NGraphicsContext *context) {
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
     };
-
     VkAttachmentReference colorAttachmentRef = {
             .attachment = 0,
             .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
     };
 
+    VkAttachmentDescription depthAttachment = {
+            .format = VK_FORMAT_R32G32B32_SFLOAT,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+    };
+    VkAttachmentReference depthAttachmentRef = {
+            .attachment = 1,
+            .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+    };
+
     VkSubpassDescription subpass = {
             .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
             .colorAttachmentCount = 1,
-            .pColorAttachments = &colorAttachmentRef
+            .pColorAttachments = &colorAttachmentRef,
+            .pDepthStencilAttachment = &depthAttachmentRef,
     };
 
     VkSubpassDependency dependency = {
             .srcSubpass = VK_SUBPASS_EXTERNAL,
             .dstSubpass = 0,
-            .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
             .srcAccessMask = 0,
-            .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+            .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
     };
+
+    VkAttachmentDescription attachments[2] = {colorAttachment, depthAttachment};
 
     VkRenderPassCreateInfo renderPassInfo = {
             .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-            .attachmentCount = 1,
-            .pAttachments = &colorAttachment,
+            .attachmentCount = 2,
+            .pAttachments = (VkAttachmentDescription*)&attachments,
             .subpassCount = 1,
             .pSubpasses = &subpass,
             .dependencyCount = 1,
@@ -476,6 +493,19 @@ void create_graphics_pipeline(NGraphicsContext *context, NMaterial *material) {
             .blendConstants[3] = 0.0f,
     };
 
+    VkPipelineDepthStencilStateCreateInfo depthStencil = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+            .depthTestEnable = VK_TRUE,
+            .depthWriteEnable = VK_TRUE,
+            .depthCompareOp = VK_COMPARE_OP_LESS,
+            .depthBoundsTestEnable = VK_FALSE,
+            .minDepthBounds = 0.0f,
+            .maxDepthBounds = 1.0f,
+            .stencilTestEnable = VK_FALSE,
+            .front = {0},
+            .back = {0}
+    };
+
     VkPushConstantRange pushConstantRange = {
             .offset = 0,
             .size = sizeof(NMatrix4x4),
@@ -504,7 +534,7 @@ void create_graphics_pipeline(NGraphicsContext *context, NMaterial *material) {
             .pViewportState = &viewportState,
             .pRasterizationState = &rasterizer,
             .pMultisampleState = &multisampling,
-            .pDepthStencilState = NULL,
+            .pDepthStencilState = &depthStencil,
             .pColorBlendState = &colorBlending,
             .pDynamicState = &dynamicState,
             .layout = material->pipelineLayout,
@@ -526,13 +556,14 @@ void create_frame_buffers(NGraphicsContext *context) {
     context->swapChainFramebuffers = n_list_create_filled(sizeof(VkFramebuffer), context->swapChainImages.count);
     for (uint32_t i = 0; i < context->swapChainImages.count; i++) {
         VkImageView attachments[] = {
-                n_list_get_inline(context->swapChainImageViews, i, VkImageView)
+                n_list_get_inline(context->swapChainImageViews, i, VkImageView),
+                context->depthImageView
         };
 
         VkFramebufferCreateInfo framebufferInfo = {
                 .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
                 .renderPass = context->renderPass,
-                .attachmentCount = 1,
+                .attachmentCount = 2,
                 .pAttachments = attachments,
                 .width = context->swapChainExtent.width,
                 .height = context->swapChainExtent.height,
@@ -560,6 +591,17 @@ void create_command_pool(NGraphicsContext *context) {
         n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to create command pool!");
         exit(-1);
     }
+}
+
+void create_image(NGraphicsContext *context, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
+                  VkMemoryPropertyFlags properties, VkImage *image, VkDeviceMemory *imageMemory);
+
+void create_depth_resources(NGraphicsContext *context) {
+    VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
+    create_image(context, context->swapChainExtent.width, context->swapChainExtent.height, depthFormat,
+                 VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &context->depthImage, &context->depthImageMemory);
+    context->depthImageView = create_image_view(context, context->depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
 }
 
 uint32_t find_memory_type(NGraphicsContext *context, uint32_t typeFilter, VkMemoryPropertyFlags properties) {
@@ -869,15 +911,18 @@ void record_command_buffer(NGraphicsContext *context, VkCommandBuffer commandBuf
         printf("Failed to begin recording command buffer");
     }
 
-    VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+    VkClearValue clearValues[2] = {
+            {.color = {0.0f, 0.0f, 0.0f, 1.0f}},
+            {.depthStencil = {1.0f, 0}}};
+
     VkRenderPassBeginInfo renderPassBeginInfo = {
             .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
             .renderPass = context->renderPass,
             .framebuffer = n_list_get_inline(context->swapChainFramebuffers, imageIndex, VkFramebuffer),
             .renderArea.offset = {0, 0},
             .renderArea.extent = context->swapChainExtent,
-            .clearValueCount = 1,
-            .pClearValues = &clearColor
+            .clearValueCount = 2,
+            .pClearValues = (VkClearValue*)&clearValues
     };
 
     vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -1058,9 +1103,10 @@ extern NGraphicsContext n_graphics_initialize(NLogger logger, NWindow window) {
     create_swap_chain(&context, window);
     create_image_views(&context);
     create_render_pass(&context);
-    create_frame_buffers(&context);
 
     create_command_pool(&context);
+    create_depth_resources(&context);
+    create_frame_buffers(&context);
 
     create_command_buffers(&context);
     create_sync_objects(&context);
@@ -1352,7 +1398,7 @@ extern NTexture n_graphics_texture_create(NGraphicsContext *context, const char 
     vkDestroyBuffer(context->device, stagingBuffer, NULL);
     vkFreeMemory(context->device, stagingBufferMemory, NULL);
 
-    texture.imageView = create_image_view(context, texture.image, VK_FORMAT_R8G8B8A8_SRGB);
+    texture.imageView = create_image_view(context, texture.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
     texture.sampler = create_texture_sampler(context);
 
     return texture;

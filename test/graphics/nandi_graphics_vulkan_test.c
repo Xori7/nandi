@@ -3,7 +3,7 @@
 #include <conio.h>
 
 typedef struct {
-    NVec2f32 pos;
+    NVec3f32 pos;
     NVec3f32 color;
     NVec2f32 uv0;
 } Vertex;
@@ -73,7 +73,7 @@ void test_n_vk_graphics_initialize_creates_valid_context() {
     VkVertexInputAttributeDescription descriptionPos = {
             .binding = 0,
             .location = 0,
-            .format = VK_FORMAT_R32G32_SFLOAT,
+            .format = VK_FORMAT_R32G32B32_SFLOAT,
             .offset = offsetof(Vertex, pos)
     };
     VkVertexInputAttributeDescription descriptionColor = {
@@ -103,10 +103,10 @@ void test_n_vk_graphics_initialize_creates_valid_context() {
     NMaterial* material = n_graphics_material_create(&graphics, materialCreateInfo);
 
     NList vertices = n_list_create(sizeof(Vertex), 4);
-    n_list_add_inline(&vertices, Vertex, ((Vertex){{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}}));
-    n_list_add_inline(&vertices, Vertex, ((Vertex){{0.5f,  -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}}));
-    n_list_add_inline(&vertices, Vertex, ((Vertex){{0.5f,  0.5f},  {1.0f, 0.0f, 1.0f}, {1.0f, 0.0f}}));
-    n_list_add_inline(&vertices, Vertex, ((Vertex){{-0.5f, 0.5f},  {1.0f, 0.0f, 1.0f}, {0.0f, 0.0f}}));
+    n_list_add_inline(&vertices, Vertex, ((Vertex){{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}}));
+    n_list_add_inline(&vertices, Vertex, ((Vertex){{0.5f,  -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}}));
+    n_list_add_inline(&vertices, Vertex, ((Vertex){{0.5f,  0.5f, 0.0f},  {1.0f, 0.0f, 1.0f}, {1.0f, 0.0f}}));
+    n_list_add_inline(&vertices, Vertex, ((Vertex){{-0.5f, 0.5f, 0.0f},  {1.0f, 0.0f, 1.0f}, {0.0f, 0.0f}}));
 
     NList_uint32_t indices = n_list_create(sizeof(uint32_t), 6);
     n_list_add_inline(&indices, uint32_t, 2);
@@ -125,6 +125,13 @@ void test_n_vk_graphics_initialize_creates_valid_context() {
         for (int j = -10; j < 10; ++j) {
             NMesh *mesh = n_graphics_mesh_create(&graphics, material, vertices, indices);
             n_transform_set_position(&transform, (NVec3f32) {j, i, 2});
+            mesh->matrix = transform.matrix;
+        }
+    }
+    for (int i = -10; i < 10; ++i) {
+        for (int j = -10; j < 10; ++j) {
+            NMesh *mesh = n_graphics_mesh_create(&graphics, material, vertices, indices);
+            n_transform_set_position(&transform, (NVec3f32) {j, i, 5});
             mesh->matrix = transform.matrix;
         }
     }

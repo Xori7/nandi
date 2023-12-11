@@ -6,7 +6,8 @@
 #include <malloc.h>
 #include <stdatomic.h>
 #include <string.h>
-#define CGLM_FORCE_LEFT_HANDED 1
+#define CGLM_FORCE_LEFT_HANDED
+#define CGLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <cglm/cglm.h>
 #include <stb_image.h>
 
@@ -627,6 +628,10 @@ typedef struct {
     NList_VkSemaphore renderFinishedSemaphores;
     NList_VkFence inFlightFences;
     uint32_t currentFrame;
+
+    VkImage depthImage;
+    VkDeviceMemory depthImageMemory;
+    VkImageView depthImageView;
 
     NList_NMaterial materials;
     NCamera camera;
