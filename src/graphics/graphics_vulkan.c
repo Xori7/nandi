@@ -66,21 +66,31 @@ void get_physical_devices(NGraphicsContext *context) {
     vkEnumeratePhysicalDevices(context->instance, &count, (VkPhysicalDevice *) context->physicalDevices.elements);
 }
 
-bool is_device_suitable(VkPhysicalDevice device) {
+float rate_device(VkPhysicalDevice device) {
     VkPhysicalDeviceProperties properties;
     VkPhysicalDeviceFeatures features;
     vkGetPhysicalDeviceProperties(device, &properties);
     vkGetPhysicalDeviceFeatures(device, &features);
 
-    return features.geometryShader; //TODO: add device rating
+    float rating = 0;
+    if (features.geometryShader) {
+        rating += 50;
+    }
+    if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+        rating += 100;
+    }
+    return rating;
 }
 
 void pick_physical_device(NGraphicsContext *context) {
+    float previousDeviceRating = 0;
+    float currentDeviceRating = 0;
     for (uint32_t i = 0; i < context->physicalDevices.count; ++i) {
         VkPhysicalDevice device = n_list_get_inline(context->physicalDevices, i, VkPhysicalDevice);
-        if (is_device_suitable(device)) {
+        previousDeviceRating = currentDeviceRating;
+        currentDeviceRating = rate_device(device);
+        if (currentDeviceRating >= previousDeviceRating) {
             context->pickedPhysicalDevice = device;
-            break;
         }
     }
 
@@ -95,7 +105,8 @@ QueueFamilyIndices find_queue_families(NGraphicsContext *context) {
     uint32_t count;
     vkGetPhysicalDeviceQueueFamilyProperties(context->pickedPhysicalDevice, &count, NULL);
     NList families = n_list_create_filled(sizeof(VkQueueFamilyProperties), count);
-    vkGetPhysicalDeviceQueueFamilyProperties(context->pickedPhysicalDevice, &count, (VkQueueFamilyProperties *) families.elements);
+    vkGetPhysicalDeviceQueueFamilyProperties(context->pickedPhysicalDevice, &count,
+                                             (VkQueueFamilyProperties *) families.elements);
 
     for (uint32_t i = 0; i < count; i++) {
         VkBool32 presentSupport = false;
@@ -165,11 +176,13 @@ SwapChainSupportDetails query_swap_chain_support(VkPhysicalDevice physicalDevice
     uint32_t count;
     vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &count, NULL);
     details.formats = n_list_create_filled(sizeof(VkSurfaceFormatKHR), count);
-    vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &count, (VkSurfaceFormatKHR *) details.formats.elements);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &count,
+                                         (VkSurfaceFormatKHR *) details.formats.elements);
 
     vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &count, NULL);
     details.presentModes = n_list_create_filled(sizeof(VkPresentModeKHR), count);
-    vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &count, (VkPresentModeKHR *) details.presentModes.elements);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &count,
+                                              (VkPresentModeKHR *) details.presentModes.elements);
 
     return details;
 }
@@ -199,8 +212,10 @@ VkExtent2D choose_swap_extent(SwapChainSupportDetails details, NWindow window) {
         return details.capabilities.currentExtent;
     } else {
         VkExtent2D extent = {
-                n_math_clamp_u32(window->size.x, details.capabilities.minImageExtent.width, details.capabilities.maxImageExtent.width),
-                n_math_clamp_u32(window->size.y, details.capabilities.minImageExtent.height, details.capabilities.maxImageExtent.height)
+                n_math_clamp_u32(window->size.x, details.capabilities.minImageExtent.width,
+                                 details.capabilities.maxImageExtent.width),
+                n_math_clamp_u32(window->size.y, details.capabilities.minImageExtent.height,
+                                 details.capabilities.maxImageExtent.height)
         };
         return extent;
     }
@@ -257,7 +272,8 @@ void create_swap_chain(NGraphicsContext *context, NWindow window) {
     context->swapChainExtent = extent;
 }
 
-VkImageView create_image_view(NGraphicsContext *context, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) {
+VkImageView
+create_image_view(NGraphicsContext *context, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) {
     VkImageViewCreateInfo viewInfo = {
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .image = image,
@@ -282,7 +298,8 @@ void create_image_views(NGraphicsContext *context) {
     context->swapChainImageViews = n_list_create_filled(sizeof(VkImageView), context->swapChainImages.count);
     for (uint32_t i = 0; i < context->swapChainImageViews.count; i++) {
         n_list_set_inline(&context->swapChainImageViews, i, VkImageView,
-                          create_image_view(context, n_list_get_inline(context->swapChainImages, i, VkImage), context->swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT));
+                          create_image_view(context, n_list_get_inline(context->swapChainImages, i, VkImage),
+                                            context->swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT));
     }
 }
 
@@ -318,6 +335,7 @@ VkShaderModule create_shader_module(NGraphicsContext *context, const char *code,
     return shaderModule;
 }
 
+VkFormat find_depth_format(NGraphicsContext *context);
 void create_render_pass(NGraphicsContext *context) {
     VkAttachmentDescription colorAttachment = {
             .format = context->swapChainImageFormat,
@@ -335,7 +353,7 @@ void create_render_pass(NGraphicsContext *context) {
     };
 
     VkAttachmentDescription depthAttachment = {
-            .format = VK_FORMAT_R32G32B32_SFLOAT,
+            .format = find_depth_format(context),
             .samples = VK_SAMPLE_COUNT_1_BIT,
             .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -370,7 +388,7 @@ void create_render_pass(NGraphicsContext *context) {
     VkRenderPassCreateInfo renderPassInfo = {
             .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
             .attachmentCount = 2,
-            .pAttachments = (VkAttachmentDescription*)&attachments,
+            .pAttachments = (VkAttachmentDescription *) &attachments,
             .subpassCount = 1,
             .pSubpasses = &subpass,
             .dependencyCount = 1,
@@ -419,7 +437,7 @@ void create_graphics_pipeline(NGraphicsContext *context, NMaterial *material) {
             .vertexBindingDescriptionCount = 1,
             .pVertexBindingDescriptions = &bindingDescription,
             .vertexAttributeDescriptionCount = attributeDescription.count,
-            .pVertexAttributeDescriptions = (VkVertexInputAttributeDescription*)attributeDescription.elements
+            .pVertexAttributeDescriptions = (VkVertexInputAttributeDescription *) attributeDescription.elements
     };
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly = {
@@ -544,7 +562,8 @@ void create_graphics_pipeline(NGraphicsContext *context, NMaterial *material) {
             .basePipelineIndex = -1
     };
 
-    if (vkCreateGraphicsPipelines(context->device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &material->graphicsPipeline) != VK_SUCCESS) {
+    if (vkCreateGraphicsPipelines(context->device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL,
+                                  &material->graphicsPipeline) != VK_SUCCESS) {
         n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to create graphics pipeline!");
         exit(-1);
     }
@@ -570,7 +589,8 @@ void create_frame_buffers(NGraphicsContext *context) {
                 .layers = 1
         };
 
-        if (vkCreateFramebuffer(context->device, &framebufferInfo, NULL, &n_list_get_inline(context->swapChainFramebuffers, i, VkFramebuffer)) !=
+        if (vkCreateFramebuffer(context->device, &framebufferInfo, NULL,
+                                &n_list_get_inline(context->swapChainFramebuffers, i, VkFramebuffer)) !=
             VK_SUCCESS) {
             n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to create framebuffer!");
             exit(-1);
@@ -593,11 +613,42 @@ void create_command_pool(NGraphicsContext *context) {
     }
 }
 
-void create_image(NGraphicsContext *context, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
+VkFormat find_supported_depth_format(NGraphicsContext *context, NList_VkFormat candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
+    for (uint32_t i = 0; i < candidates.count; i++) {
+        VkFormat format = n_list_get_inline(candidates, i, VkFormat);
+        VkFormatProperties props;
+        vkGetPhysicalDeviceFormatProperties(context->pickedPhysicalDevice, format, &props);
+
+        if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) {
+            return format;
+        } else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features) {
+            return format;
+        }
+    }
+    n_logger_log(context->logger, LOGLEVEL_ERROR, "failed to find supported format!");
+    exit(-1);
+}
+
+VkFormat find_depth_format(NGraphicsContext *context) {
+    NList_VkFormat candidates = n_list_create(sizeof(VkFormat), 4);
+    n_list_add_inline(&candidates, VkFormat, VK_FORMAT_D32_SFLOAT);
+    n_list_add_inline(&candidates, VkFormat, VK_FORMAT_D32_SFLOAT_S8_UINT);
+    n_list_add_inline(&candidates, VkFormat, VK_FORMAT_D24_UNORM_S8_UINT);
+    VkFormat format = find_supported_depth_format(context,
+            candidates,
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+    );
+    n_list_destroy(candidates);
+    return format;
+}
+
+void create_image(NGraphicsContext *context, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
+                  VkImageUsageFlags usage,
                   VkMemoryPropertyFlags properties, VkImage *image, VkDeviceMemory *imageMemory);
 
 void create_depth_resources(NGraphicsContext *context) {
-    VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
+    VkFormat depthFormat = find_depth_format(context);
     create_image(context, context->swapChainExtent.width, context->swapChainExtent.height, depthFormat,
                  VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &context->depthImage, &context->depthImageMemory);
@@ -618,8 +669,10 @@ uint32_t find_memory_type(NGraphicsContext *context, uint32_t typeFilter, VkMemo
     exit(-1);
 }
 
-void create_buffer(NGraphicsContext *context, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer *buffer,
-                   VkDeviceMemory *bufferMemory) {
+void
+create_buffer(NGraphicsContext *context, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
+              VkBuffer *buffer,
+              VkDeviceMemory *bufferMemory) {
     VkBufferCreateInfo bufferInfo = {
             .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
             .size = size,
@@ -765,7 +818,8 @@ void create_uniform_buffers(NGraphicsContext *context, NMaterial *material) {
                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                       &n_list_get_inline(material->uniformBuffers, i, VkBuffer),
                       &n_list_get_inline(material->uniformBuffersMemory, i, VkDeviceMemory));
-        vkMapMemory(context->device, n_list_get_inline(material->uniformBuffersMemory, i, VkDeviceMemory), 0, bufferSize, 0,
+        vkMapMemory(context->device, n_list_get_inline(material->uniformBuffersMemory, i, VkDeviceMemory), 0,
+                    bufferSize, 0,
                     &n_list_get_inline(material->uniformBuffersMapped, i, void*));
     }
 }
@@ -785,7 +839,7 @@ void create_descriptor_pool(NGraphicsContext *context, NMaterial *material) {
     VkDescriptorPoolCreateInfo poolInfo = {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
             .poolSizeCount = 2,
-            .pPoolSizes = (VkDescriptorPoolSize*)&poolSizes,
+            .pPoolSizes = (VkDescriptorPoolSize *) &poolSizes,
             .maxSets = MAX_FRAMES_IN_FLIGHT
     };
 
@@ -805,11 +859,12 @@ void create_descriptor_sets(NGraphicsContext *context, NMaterial *material) {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
             .descriptorPool = material->descriptorPool,
             .descriptorSetCount = MAX_FRAMES_IN_FLIGHT,
-            .pSetLayouts = (VkDescriptorSetLayout*)layouts.elements
+            .pSetLayouts = (VkDescriptorSetLayout *) layouts.elements
     };
 
     material->descriptorSets = n_list_create_filled(sizeof(VkDescriptorSet), MAX_FRAMES_IN_FLIGHT);
-    if (vkAllocateDescriptorSets(context->device, &allocInfo, (VkDescriptorSet *) material->descriptorSets.elements) != VK_SUCCESS) {
+    if (vkAllocateDescriptorSets(context->device, &allocInfo, (VkDescriptorSet *) material->descriptorSets.elements) !=
+        VK_SUCCESS) {
         n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to allocate descriptor sets!");
         exit(-1);
     }
@@ -849,7 +904,7 @@ void create_descriptor_sets(NGraphicsContext *context, NMaterial *material) {
                         .pTexelBufferView = NULL
                 }
         };
-        vkUpdateDescriptorSets(context->device, 2, (VkWriteDescriptorSet*)&descriptorWriters, 0, NULL);
+        vkUpdateDescriptorSets(context->device, 2, (VkWriteDescriptorSet *) &descriptorWriters, 0, NULL);
     }
 
     n_list_destroy(layouts);
@@ -876,7 +931,7 @@ void create_descriptor_set_layout(NGraphicsContext *context, NMaterial *material
     VkDescriptorSetLayoutCreateInfo layoutInfo = {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
             .bindingCount = 2,
-            .pBindings = (VkDescriptorSetLayoutBinding*)&bindings
+            .pBindings = (VkDescriptorSetLayoutBinding *) &bindings
     };
 
     if (vkCreateDescriptorSetLayout(context->device, &layoutInfo, NULL, &material->descriptorSetLayout) != VK_SUCCESS) {
@@ -894,7 +949,8 @@ void create_command_buffers(NGraphicsContext *context) {
             .commandBufferCount = context->commandBuffers.count
     };
 
-    if (vkAllocateCommandBuffers(context->device, &allocInfo, (VkCommandBuffer *) context->commandBuffers.elements) != VK_SUCCESS) {
+    if (vkAllocateCommandBuffers(context->device, &allocInfo, (VkCommandBuffer *) context->commandBuffers.elements) !=
+        VK_SUCCESS) {
         n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to allocate command buffers!");
         exit(-1);
     }
@@ -922,7 +978,7 @@ void record_command_buffer(NGraphicsContext *context, VkCommandBuffer commandBuf
             .renderArea.offset = {0, 0},
             .renderArea.extent = context->swapChainExtent,
             .clearValueCount = 2,
-            .pClearValues = (VkClearValue*)&clearValues
+            .pClearValues = (VkClearValue *) &clearValues
     };
 
     vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -959,12 +1015,14 @@ void record_command_buffer(NGraphicsContext *context, VkCommandBuffer commandBuf
             vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, material.pipelineLayout, 0, 1,
-                                    &n_list_get_inline(material.descriptorSets, context->currentFrame, VkDescriptorSet), 0, NULL);
+                                    &n_list_get_inline(material.descriptorSets, context->currentFrame, VkDescriptorSet),
+                                    0, NULL);
 
             //update_uniform_buffer(context, &mesh, context->currentFrame); //TODO
             NMatrix4x4 matrix;
             glm_mat4_mul((vec4 *) &context->camera.viewProjectionMatrix, (vec4 *) &mesh.matrix, (vec4 *) &matrix);
-            vkCmdPushConstants(commandBuffer, material.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(NMatrix4x4), &matrix);
+            vkCmdPushConstants(commandBuffer, material.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,
+                               sizeof(NMatrix4x4), &matrix);
             vkCmdDrawIndexed(commandBuffer, mesh.indices.count, 1, 0, 0, 0);
         }
     }
@@ -990,11 +1048,14 @@ void create_sync_objects(NGraphicsContext *context) {
     };
 
     for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
-        if (vkCreateSemaphore(context->device, &semaphoreInfo, NULL, &n_list_get_inline(context->imageAvailableSemaphores, i, VkSemaphore)) !=
+        if (vkCreateSemaphore(context->device, &semaphoreInfo, NULL,
+                              &n_list_get_inline(context->imageAvailableSemaphores, i, VkSemaphore)) !=
             VK_SUCCESS ||
-            vkCreateSemaphore(context->device, &semaphoreInfo, NULL, &n_list_get_inline(context->renderFinishedSemaphores, i, VkSemaphore)) !=
+            vkCreateSemaphore(context->device, &semaphoreInfo, NULL,
+                              &n_list_get_inline(context->renderFinishedSemaphores, i, VkSemaphore)) !=
             VK_SUCCESS ||
-            vkCreateFence(context->device, &fenceInfo, NULL, &n_list_get_inline(context->inFlightFences, i, VkFence)) != VK_SUCCESS) {
+            vkCreateFence(context->device, &fenceInfo, NULL, &n_list_get_inline(context->inFlightFences, i, VkFence)) !=
+            VK_SUCCESS) {
             n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to create sync objects!");
             exit(-1);
         }
@@ -1011,7 +1072,8 @@ void update_camera_matrix(NGraphicsContext *context) {
 
     NMatrix4x4 projection;
     glm_mat4_identity((vec4 *) &projection);
-    glm_perspective(glm_rad(context->camera.fov), (float) context->swapChainExtent.width / (float) context->swapChainExtent.height,
+    glm_perspective(glm_rad(context->camera.fov),
+                    (float) context->swapChainExtent.width / (float) context->swapChainExtent.height,
                     context->camera.nearPlane, context->camera.farPlane, (vec4 *) &projection);
     projection.m[1][1] *= -1;
     glm_mat4_mul((vec4 *) &projection, (vec4 *) &view, (vec4 *) &context->camera.viewProjectionMatrix);
@@ -1020,20 +1082,24 @@ void update_camera_matrix(NGraphicsContext *context) {
 extern void n_graphics_draw_frame(NGraphicsContext *context) {
     update_camera_matrix(context);
 
-    vkWaitForFences(context->device, 1, &n_list_get_inline(context->inFlightFences, context->currentFrame, VkFence), VK_TRUE, UINT64_MAX);
+    vkWaitForFences(context->device, 1, &n_list_get_inline(context->inFlightFences, context->currentFrame, VkFence),
+                    VK_TRUE, UINT64_MAX);
     vkResetFences(context->device, 1, &n_list_get_inline(context->inFlightFences, context->currentFrame, VkFence));
 
     uint32_t imageIndex;
     vkAcquireNextImageKHR(context->device, context->swapChain, UINT64_MAX,
-                          n_list_get_inline(context->imageAvailableSemaphores, context->currentFrame, VkSemaphore), VK_NULL_HANDLE, &imageIndex);
+                          n_list_get_inline(context->imageAvailableSemaphores, context->currentFrame, VkSemaphore),
+                          VK_NULL_HANDLE, &imageIndex);
     vkResetCommandBuffer(n_list_get_inline(context->commandBuffers, context->currentFrame, VkCommandBuffer), 0);
-    record_command_buffer(context, n_list_get_inline(context->commandBuffers, context->currentFrame, VkCommandBuffer), imageIndex);
+    record_command_buffer(context, n_list_get_inline(context->commandBuffers, context->currentFrame, VkCommandBuffer),
+                          imageIndex);
 
     VkSubmitInfo submitInfo = {
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO
     };
 
-    VkSemaphore waitSemaphores[] = {n_list_get_inline(context->imageAvailableSemaphores, context->currentFrame, VkSemaphore)};
+    VkSemaphore waitSemaphores[] = {
+            n_list_get_inline(context->imageAvailableSemaphores, context->currentFrame, VkSemaphore)};
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     submitInfo.waitSemaphoreCount = 1;
     submitInfo.pWaitSemaphores = waitSemaphores;
@@ -1041,11 +1107,13 @@ extern void n_graphics_draw_frame(NGraphicsContext *context) {
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &n_list_get_inline(context->commandBuffers, context->currentFrame, VkCommandBuffer);
 
-    VkSemaphore signalSemaphores[] = {n_list_get_inline(context->renderFinishedSemaphores, context->currentFrame, VkSemaphore)};
+    VkSemaphore signalSemaphores[] = {
+            n_list_get_inline(context->renderFinishedSemaphores, context->currentFrame, VkSemaphore)};
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    if (vkQueueSubmit(context->graphicsQueue, 1, &submitInfo, n_list_get_inline(context->inFlightFences, context->currentFrame, VkFence)) !=
+    if (vkQueueSubmit(context->graphicsQueue, 1, &submitInfo,
+                      n_list_get_inline(context->inFlightFences, context->currentFrame, VkFence)) !=
         VK_SUCCESS) {
         n_logger_log(context->logger, LOGLEVEL_ERROR, "Failed to allocate command buffer!");
         exit(-1);
@@ -1069,8 +1137,13 @@ extern void n_graphics_draw_frame(NGraphicsContext *context) {
 }
 
 void cleanup_swap_chain(NGraphicsContext *context) {
+    vkDestroyImageView(context->device, context->depthImageView, NULL);
+    vkDestroyImage(context->device, context->depthImage, NULL);
+    vkFreeMemory(context->device, context->depthImageMemory, NULL);
+
     for (uint32_t i = 0; i < context->swapChainFramebuffers.count; ++i) {
-        vkDestroyFramebuffer(context->device, n_list_get_inline(context->swapChainFramebuffers, i, VkFramebuffer), NULL);
+        vkDestroyFramebuffer(context->device, n_list_get_inline(context->swapChainFramebuffers, i, VkFramebuffer),
+                             NULL);
     }
     n_list_destroy(context->swapChainFramebuffers);
 
@@ -1088,6 +1161,7 @@ extern void n_graphics_recreate_swap_chain(NGraphicsContext *context, NWindow wi
 
     create_swap_chain(context, window);
     create_image_views(context);
+    create_depth_resources(context);
     create_frame_buffers(context);
 }
 
@@ -1213,7 +1287,8 @@ extern void n_graphics_mesh_destroy(NGraphicsContext *context, NMesh *mesh) {
     *mesh = (NMesh) {0};
 }
 
-void create_image(NGraphicsContext *context, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
+void create_image(NGraphicsContext *context, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
+                  VkImageUsageFlags usage,
                   VkMemoryPropertyFlags properties, VkImage *image, VkDeviceMemory *imageMemory) {
     VkImageCreateInfo imageInfo = {
             .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -1252,7 +1327,8 @@ void create_image(NGraphicsContext *context, uint32_t width, uint32_t height, Vk
     vkBindImageMemory(context->device, *image, *imageMemory, 0);
 }
 
-void transition_image_layout(NGraphicsContext *context, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
+void transition_image_layout(NGraphicsContext *context, VkImage image, VkFormat format, VkImageLayout oldLayout,
+                             VkImageLayout newLayout) {
     VkCommandBuffer commandBuffer = begin_single_time_commands(context);
     VkImageMemoryBarrier barrier = {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
@@ -1280,7 +1356,8 @@ void transition_image_layout(NGraphicsContext *context, VkImage image, VkFormat 
 
         sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
         destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-    } else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+    } else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL &&
+               newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
@@ -1376,7 +1453,8 @@ extern NTexture n_graphics_texture_create(NGraphicsContext *context, const char 
 
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
-    create_buffer(context, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+    create_buffer(context, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                   &stagingBuffer, &stagingBufferMemory);
 
     void *data;
@@ -1390,7 +1468,8 @@ extern NTexture n_graphics_texture_create(NGraphicsContext *context, const char 
                  VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &texture.image, &texture.imageMemory);
 
-    transition_image_layout(context, texture.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    transition_image_layout(context, texture.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED,
+                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     copy_buffer_to_image(context, stagingBuffer, texture.image, texture.width, texture.height);
     transition_image_layout(context, texture.image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);

@@ -542,6 +542,7 @@ typedef NList NList_VkFramebuffer;
 typedef NList NList_VkPhysicalDevice;
 typedef NList NList_VkImage;
 typedef NList NList_VkImageView;
+typedef NList NList_VkFormat;
 
 typedef struct i_NMaterial NMaterial;
 
