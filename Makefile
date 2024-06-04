@@ -24,7 +24,7 @@ endif
 
 TEST_LIBS = -L$(BUILD)/$(OS) -lnandi
 
-INCLUDES = -I$(VULKAN_SDK)/Include 
+INCLUDES = $(subst \,/,-I$(VULKAN_SDK)/Include)
 INCLUDES += -Iinclude
 
 SRC_FILES = $(wildcard $(SRC)/*.c) $(wildcard $(SRC)/**/*.c) $(wildcard $(SRC)/**/**/*.c) $(wildcard $(SRC)/**/**/**/*.c) $(wildcard $(SRC)/**/**/**/**/*.c)
@@ -45,6 +45,10 @@ build: $(TARGET)
 
 test: build $(TEST_TARGET)
 	./$(TEST_TARGET)
+
+init: 
+	rm -f ./compile_flags.txt
+	printf "$(subst -,\n-,$(INCLUDES))" > ./compile_flags.txt
 
 $(TARGET): $(OBJ_FILES) | $(BUILD)/$(OS)
 	$(CC) $(C_FLAGS) --shared -o $@ $^ $(LIBS)
