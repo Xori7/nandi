@@ -1,29 +1,76 @@
-LIB_NAME=nandi
-CC=clang
-BUILD_DIR=build
-SRC_DIR=src
-OUTPUT=$(BUILD_DIR)/$(LIB_NAME).lib
-SRC_FILES=test.c cat.c
-OBJ_FILES=$(patsubst %.c, $(BUILD_DIR)/%.o, $(SRC_FILES))
-
-ifeq ($(OS),Windows_NT)
-	C_COMP_FLAGS = -IC:/VulkanSDK/1.3.261.1/Include
-	C_LINK_FLAGS = -LC:/VulkanSDK/1.3.261.1/Lib -lvulkan-1
+ifneq ($(OS),Windows_NT)
+	UNAME_S = $(shell uname -s)
+	ifeq ($(UNAME_S),Linux)
+		OS = Linux
+	endif
 endif
 
+#Config
+GAME_NAME = nandi
+SRC = src
+BUILD = build
+OBJ = obj
+TEST = test
+#_Config
 
-all : $(OUTPUT)
+CC = clang
+C_FLAGS = -g -Wall
 
-$(OUTPUT) : $(OBJ_FILES)
-	ar rcs $(OUTPUT) $(OBJ_FILES)
+ifeq ($(OS),Windows_NT)
+	LIBS = -L$(VULKAN_SDK)/Lib -lvulkan-1
+else ifeq ($(OS),Linux)
+	LIBS = -L$(VULKAN_SDK)/Lib -lvulkan
+endif
 
-$(BUILD_DIR)/%.o : $(SRC_DIR)/%.c | $(BUILD_DIR)
-	$(CC) -c $< $(C_COMP_FLAGS) -o $@
+TEST_LIBS = -L$(BUILD)/$(OS) -lnandi
 
-$(BUILD_DIR) :
-	mkdir -p $(BUILD_DIR)
+INCLUDES = -I$(VULKAN_SDK)/Include 
+INCLUDES += -Iinclude
 
-clean : 
-	rm -r $(BUILD_DIR)/*
+SRC_FILES = $(wildcard $(SRC)/*.c) $(wildcard $(SRC)/**/*.c) $(wildcard $(SRC)/**/**/*.c) $(wildcard $(SRC)/**/**/**/*.c) $(wildcard $(SRC)/**/**/**/**/*.c)
+TEST_SRC_FILES = $(wildcard $(TEST)/*.c) $(wildcard $(TEST)/**/*.c) $(wildcard $(TEST)/**/**/*.c) $(wildcard $(TEST)/**/**/**/*.c) $(wildcard $(TEST)/**/**/**/**/*.c)
+ 
+OBJ_FILES = $(patsubst $(SRC)/%.c, $(BUILD)/$(OS)/$(OBJ)/%.o, $(SRC_FILES))
+TEST_OBJ_FILES = $(filter-out $(BUILD)/$(OS)/$(OBJ)/main.o, $(OBJ_FILES)) $(patsubst $(TEST)/%.c, $(BUILD)/$(OS)/$(TEST)/%.o, $(TEST_SRC_FILES))
+
+ifeq ($(OS),Windows_NT)
+	TARGET = $(BUILD)/$(OS)/$(GAME_NAME).dll
+else ifeq ($(OS),Linux)
+	TARGET = $(BUILD)/$(OS)/$(GAME_NAME).so
+endif
+
+TEST_TARGET = $(BUILD)/$(OS)/$(TEST)/$(GAME_NAME)_test
+
+build: $(TARGET)
+
+test: build $(TEST_TARGET)
+	./$(TEST_TARGET)
+
+$(TARGET): $(OBJ_FILES) | $(BUILD)/$(OS)
+	$(CC) $(C_FLAGS) --shared -o $@ $^ $(LIBS)
+
+$(TEST_TARGET): $(TEST_OBJ_FILES) | $(BUILD)/$(OS)/$(TEST)
+	$(CC) $(C_FLAGS) -o $@ $^ $(TEST_LIBS)
+
+$(BUILD)/$(OS)/$(OBJ)/%.o: $(SRC)/%.c | $(BUILD)/$(OS)/$(OBJ)
+	mkdir -p $(dir $@)
+	$(CC) -c $< $(C_FLAGS) $(INCLUDES) -o $@
+
+$(BUILD)/$(OS)/$(TEST)/%.o: $(TEST)/%.c | $(BUILD)/$(OS)/$(TEST)
+	mkdir -p $(dir $@)
+	$(CC) -c $< $(C_FLAGS) $(INCLUDES) -o $@
+
+$(BUILD)/$(OS): 
+	mkdir -p $(BUILD)/$(OS)
+
+$(BUILD)/$(OS)/$(OBJ): 
+	mkdir -p $(BUILD)/$(OS)/$(OBJ)
+
+$(BUILD)/$(OS)/$(TEST):
+	mkdir -p $(BUILD)/$(OS)/$(TEST)
+
+clean: 
+	rm -r $(BUILD)/*
 
 .PHONY : all clean
+
