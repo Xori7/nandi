@@ -3,18 +3,15 @@
 #include <stdlib.h>
 
 void *default_allocator_alloc(u64 amount) {
-    assert(amount > 0 && "can't allocate 0 bytes!");
     return malloc(amount);
 }
 
 void *default_allocator_calloc(u64 amount) {
-    assert(amount > 0 && "can't allocate 0 bytes!");
     return calloc(1, amount);
 }
 
 void *default_allocator_realloc(void *ptr, u64 amount) {
     assert(ptr != NULL && "can't realloc NULL pointer!");
-    assert(amount > 0 && "can't allocate 0 bytes!");
     return realloc(ptr, amount);
 }
 
