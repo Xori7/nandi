@@ -1,3 +1,5 @@
+#if !NANDI_PRIMITIVES
+#define NANDI_PRIMITIVES 1
 #include <stdint.h>
 
 typedef int8_t      i8;
@@ -9,5 +11,6 @@ typedef uint32_t    u32;
 typedef int64_t     i64;
 typedef uint64_t    u64;
 
-// vi: ft=c
-
+typedef float f32;
+typedef double f64;
+#endif // !NANDI_PRIMITIVES

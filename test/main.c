@@ -2,5 +2,6 @@
 #include "nandi/nandi.h"
 
 int main() {
-    printf("hello from test %d", test_function());
+    N_Allocator *allocator = n_memory_default_allocator_create();
+    allocator->alloc(5);
 }
