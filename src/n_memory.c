@@ -1,14 +1,14 @@
 #include "nandi/n_memory.h"
 #include <assert.h>
 #include <stdlib.h>
-
+#include <stdint.h>
 
 static inline size_t align_up(size_t value, size_t alignment) {
     return (value + (alignment - 1)) & ~(alignment - 1);
 }
 
 N_Error n_alloc_max_align(N_Allocator *allocator, size_t size, void **out_ptr) {
-    return allocator->alloc(allocator, size, _Alignof(max_align_t), out_ptr);
+    return allocator->alloc(allocator, size, sizeof(intmax_t), out_ptr);
 }
 
 N_Error n_alloc(N_Allocator *allocator, size_t size, size_t alignment, void **out_ptr) {

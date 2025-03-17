@@ -3,8 +3,6 @@
 #include "n_primitives.h"
 #include "n_error.h"
 
-void n_test_memory(void);
-
 typedef struct N_Allocator N_Allocator;
 
 struct N_Allocator {

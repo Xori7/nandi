@@ -14,7 +14,7 @@ TEST = test
 #_Config
 
 CC = clang
-C_FLAGS = -g -Wall
+C_FLAGS = -g -Wall -Wconversion -Wpedantic -Werror -std=c11
 
 ifeq ($(OS),Windows_NT)
 	LIBS = -L$(VULKAN_SDK)/Lib -lvulkan-1

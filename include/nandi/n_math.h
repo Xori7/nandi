@@ -3,5 +3,4 @@
 
 #include "n_primitives.h"
 
-
 #endif // !N_MATH_H
