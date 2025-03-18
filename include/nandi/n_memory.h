@@ -23,7 +23,7 @@ extern void n_default_allocator_init(N_DefaultAllocator *out_allocator);
 
 typedef struct {
     N_Allocator allocator;
-    void* buffer;
+    U8* buffer;
     size_t offset;
     size_t size;
 } N_ArenaAllocator;

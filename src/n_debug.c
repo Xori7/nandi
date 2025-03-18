@@ -1,43 +1,80 @@
 #include "nandi/n_debug.h"
+#include <stdarg.h>
 #include <stdio.h>
-#include <string.h>
+#include <time.h>
 
-static N_Error file_write(FILE *stream, const char *msg) {
-    size_t len = strlen(msg);
-    if (fwrite(msg, sizeof(char), len, stream) < len) {
-        return N_ERR_FILE_WRITE;
+static N_Error vprint_to_file_and_console(FILE *fstream, const char *fmt, va_list args) {
+    if (vprintf(fmt, args) < 0) {
+        return N_ERR_PRINTF_FAIL;
+    }
+    if (vfprintf(fstream, fmt, args) < 0) {
+        return N_ERR_PRINTF_FAIL;
     }
     return N_ERR_OK;
 }
 
-static N_Error log_to_file(const char *msg, const char *file, U32 line) {
+static N_Error print_to_file_and_console(FILE *fstream, const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    N_Error err = vprint_to_file_and_console(fstream, fmt, args);
+    va_end(args);
+    return err;
+}
+
+static N_Error log_to_file(const char *prefix, const char *fmt, va_list args) {
     FILE *fstream;
-    if (fopen_s(&fstream, file, "w") != 0) {
+    if (fopen_s(&fstream, N_DEBUG_FILE, "a") != 0) {
         return N_ERR_FILE_OPEN;
     }
 
-    char c[10];
-    itoa(line, c, );
+    time_t raw_time;
+    time(&raw_time);
+    struct tm *local_time = localtime(&raw_time);
 
-    file_write(fstream, "<");
-    file_write(fstream, file);
-    file_write(fstream, ">:");
-    file_write(fstream, line);
+    char time_str[128];
+    if (strftime(time_str, sizeof(time_str), "%H:%M:%S", local_time) <= 0) {
+        return N_ERR_SPRFTIME_FAIL;
+    }
+
+    N_OK(print_to_file_and_console(fstream, "[%s] %s", time_str, prefix));
+    N_OK(vprint_to_file_and_console(fstream, fmt, args));
+    N_OK(print_to_file_and_console(fstream, "%c", '\n'));
 
     if (fclose(fstream) != 0) {
         return N_ERR_FILE_CLOSE;
     }
 
+    return N_ERR_OK;
 }
 
-N_Error n_debug_log(const char *msg, const char *file, U32 line) {
-    
+N_Error n_debug_log(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    N_Error err = log_to_file("LOG:  ", fmt, args);
+    va_end(args);
+    return err;
 }
 
-N_Error n_debug_warn(const char *msg, const char *file, U32 line) {
-
+N_Error n_debug_warn(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    N_Error err = log_to_file("WARN: ", fmt, args);
+    va_end(args);
+    return err;
 }
 
-N_Error n_debug_err(const char *msg, const char *file, U32 line) {
+N_Error n_debug_err(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    N_Error err = log_to_file("ERR:  ", fmt, args);
+    va_end(args);
+    return err;
+}
 
+N_Error n_debug_info(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    N_Error err = log_to_file("INFO: ", fmt, args);
+    va_end(args);
+    return err;
 }

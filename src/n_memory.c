@@ -1,5 +1,4 @@
 #include "nandi/n_memory.h"
-#include <assert.h>
 #include <stdlib.h>
 #include <stdint.h>
 
@@ -29,7 +28,7 @@ static inline N_Error n_default_allocator_alloc(N_Allocator *allocator, size_t s
 }
 
 static inline void n_default_allocator_free(N_Allocator *allocator, void *ptr) {
-    return free(ptr);
+    free(ptr);
 }
 
 void n_default_allocator_init(N_DefaultAllocator *out_allocator) {

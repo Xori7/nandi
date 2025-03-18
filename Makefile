@@ -43,12 +43,13 @@ TEST_TARGET = $(BUILD)/$(OS)/$(TEST)/$(GAME_NAME)_test
 
 build: $(TARGET)
 
-test: build $(TEST_TARGET)
+test: build $(TARGET) build $(TEST_TARGET)
 	./$(TEST_TARGET)
 
 init: 
 	rm -f ./compile_flags.txt
 	printf "$(subst -,\n-,$(INCLUDES))" > ./compile_flags.txt
+	mkdir debug/
 
 $(TARGET): $(OBJ_FILES) | $(BUILD)/$(OS)
 	$(CC) $(C_FLAGS) --shared -o $@ $^ $(LIBS)
@@ -74,6 +75,7 @@ $(BUILD)/$(OS)/$(TEST):
 	mkdir -p $(BUILD)/$(OS)/$(TEST)
 
 clean: 
+	rm -r ./debug/
 	rm -r $(BUILD)/*
 
 .PHONY : all clean
