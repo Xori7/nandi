@@ -46,6 +46,9 @@ build: $(TARGET)
 test: build $(TARGET) build $(TEST_TARGET)
 	./$(TEST_TARGET)
 
+tidy: 
+	clang-tidy $(SRC_FILES) -- $(INCLUDES) -checks=-*
+
 init: 
 	rm -f ./compile_flags.txt
 	printf "$(subst -,\n-,$(INCLUDES))" > ./compile_flags.txt
