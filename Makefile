@@ -13,7 +13,7 @@ OBJ = obj
 TEST = test
 #_Config
 
-CC = clang
+CC = gcc
 C_FLAGS = -g -Wall -Wconversion -Wpedantic -Werror -std=c11
 
 ifeq ($(OS),Windows_NT)
