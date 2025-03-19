@@ -1,6 +1,6 @@
 #if !NANDI_NSTRING
 #define NANDI_NSTRING 1
-#include "n_primitives.h"
+#include "n_core.h"
 #include "n_memory.h"
 
 typedef struct N_String N_String;

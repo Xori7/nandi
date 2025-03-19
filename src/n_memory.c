@@ -40,15 +40,17 @@ void n_default_allocator_init(N_DefaultAllocator *out_allocator) {
 
 static inline N_Error n_arena_allocator_alloc(N_Allocator *allocator, size_t size, size_t alignment, void **out_ptr) {
     N_ArenaAllocator *arena = (N_ArenaAllocator*)allocator;
-    if (arena->buffer != NULL) {
+    if (arena->buffer == NULL) {
         return N_ERR_ALLOCATOR_NOT_INITIALIZED;
     } 
 
-    size_t new_offset = align_up(arena->offset, alignment) + size;
+    size_t new_ptr = align_up(arena->offset, alignment);
+    size_t new_offset = new_ptr + size;
     if (new_offset > arena->size) {
-        return N_ERR_OUT_OF_MEMORY;
+        return N_ERR_ARENA_OVERFLOW;
     } else {
-        *out_ptr = arena->buffer + new_offset;
+        arena->offset = new_offset;
+        *out_ptr = arena->buffer + new_ptr;
         return N_ERR_OK;
     }
 }
