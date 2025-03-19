@@ -1,4 +1,4 @@
 #include "nandi/nandi.h"
 
-// # Memory #
 Bool n_test_memory(void);
+Bool n_test_math(void);

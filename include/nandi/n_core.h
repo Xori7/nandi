@@ -60,9 +60,9 @@ typedef enum {
 extern const char *n_err_to_str(N_Error error);
 extern void n_unwrap(N_Error error, const char *file, I32 line);
 
-#define N_OK(call) do { \
-    N_Error result = (call); \
-    if (result != N_ERR_OK) return result; \
+#define N_OK(call) do {                     \
+    N_Error result = (call);                \
+    if (result != N_ERR_OK) return result;  \
 } while (0)
 
 #define N_UNWRAP(_call) n_unwrap((_call), __FILE__, __LINE__)
