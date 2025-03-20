@@ -11,5 +11,4 @@ F32 n_rand_next_f32(N_Random *random, F32 min, F32 max);
 F64 n_rand_next_f64(N_Random *random, F64 min, F64 max);
 
 
-
 #endif // !N_MATH_H
