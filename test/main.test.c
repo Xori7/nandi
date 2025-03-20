@@ -6,5 +6,6 @@ int main(void) {
     n_default_allocator_init(&allocator);
     n_test_memory();
     n_test_math();
+    n_test_graphics();
 }
 

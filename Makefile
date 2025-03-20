@@ -13,8 +13,8 @@ OBJ = obj
 TEST = test
 #_Config
 
-CC = gcc
-C_FLAGS = -g -Wall -Wconversion -Wpedantic -Werror -std=c11
+CC = clang
+C_FLAGS = -g #-Wall -Wconversion -Wpedantic -Werror -std=c11
 
 ifeq ($(OS),Windows_NT)
 	LIBS = -L$(VULKAN_SDK)/Lib -lvulkan-1
@@ -31,7 +31,7 @@ SRC_FILES = $(wildcard $(SRC)/*.c) $(wildcard $(SRC)/**/*.c) $(wildcard $(SRC)/*
 TEST_SRC_FILES = $(wildcard $(TEST)/*.c) $(wildcard $(TEST)/**/*.c) $(wildcard $(TEST)/**/**/*.c) $(wildcard $(TEST)/**/**/**/*.c) $(wildcard $(TEST)/**/**/**/**/*.c)
  
 OBJ_FILES = $(patsubst $(SRC)/%.c, $(BUILD)/$(OS)/$(OBJ)/%.o, $(SRC_FILES))
-TEST_OBJ_FILES = $(filter-out $(BUILD)/$(OS)/$(OBJ)/main.o, $(OBJ_FILES)) $(patsubst $(TEST)/%.c, $(BUILD)/$(OS)/$(TEST)/%.o, $(TEST_SRC_FILES))
+TEST_OBJ_FILES = $(patsubst $(TEST)/%.c, $(BUILD)/$(OS)/$(TEST)/%.o, $(TEST_SRC_FILES))
 
 ifeq ($(OS),Windows_NT)
 	TARGET = $(BUILD)/$(OS)/$(GAME_NAME).dll
@@ -39,11 +39,12 @@ else ifeq ($(OS),Linux)
 	TARGET = $(BUILD)/$(OS)/$(GAME_NAME).so
 endif
 
-TEST_TARGET = $(BUILD)/$(OS)/$(TEST)/$(GAME_NAME)_test
+TEST_TARGET = $(BUILD)/$(OS)/$(GAME_NAME)_test
 
 build: $(TARGET)
+build_test: $(TEST_TARGET)
 
-test: build $(TARGET) build $(TEST_TARGET)
+test: build build_test
 	./$(TEST_TARGET)
 
 init: 

@@ -3,3 +3,4 @@
 #include "n_math.h"
 #include "n_string.h"
 #include "n_test.h"
+#include "n_graphics.h"
