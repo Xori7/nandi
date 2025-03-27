@@ -120,6 +120,8 @@ typedef struct N_GraphicsState N_GraphicsState;
 
 struct N_GraphicsState {
     N_VkLayersInfo layers_info;
+    VkInstance instance;
+    VkPhysicalDevice physical_device;
 };
 
 static N_VkLayersInfo n_vk_enable_validation_layers() {
@@ -184,7 +186,31 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL n_vk_debug_report_callback(
     n_debug_info("Vulkan Debug Report: %s: %s\n", pLayerPrefix, pMessage);
 
     return VK_FALSE;
- }
+}
+
+static void n_vk_find_physical_device(N_GraphicsState *graphics_state) {
+    uint32_t deviceCount;
+    vkEnumeratePhysicalDevices(graphics_state->instance, &deviceCount, NULL);
+    if (deviceCount == 0) {
+        printf("could not find a device with vulkan support");
+    }
+
+    VkPhysicalDevice devices[deviceCount];
+    vkEnumeratePhysicalDevices(graphics_state->instance, &deviceCount, devices);
+
+    //TODO(xori): add decision code for selecting best device and add more than one device support etc.
+    for (uint32_t i = 0; i < deviceCount; i++) {
+        VkPhysicalDevice device = devices[i];
+        if (TRUE) { // As above stated, we do no feature checks, so just accept.
+            graphics_state->physical_device = device;
+            break;
+        }
+    }
+    if (graphics_state->physical_device == NULL) {
+        n_debug_err("Vulkan physical device not found!");
+        exit(-1);
+    }
+}
 
 extern N_GraphicsState *n_graphics_initialize(void) {
     VkApplicationInfo applicationInfo = {0};
@@ -231,12 +257,15 @@ extern N_GraphicsState *n_graphics_initialize(void) {
         VK_CHECK_RESULT(vk_create_debug_report_callbackEXT(instance, &createInfo, NULL, &debugReportCallback));
     }
 
-    N_GraphicsState *graphicsState = malloc(sizeof(*graphicsState));
+    N_GraphicsState *graphicsState = calloc(1, sizeof(*graphicsState));
+    graphicsState->instance = instance;
     graphicsState->layers_info = layers_info;
+
+    n_vk_find_physical_device(graphicsState);
     return graphicsState;
 }
 
-void findPhysicalDevice(void);
+static void n_vk_find_physical_device(void);
 void createDevice(N_GraphicsState *graphics_state);
 void createBuffer(void);
 void createDescriptorSetLayout(void);
@@ -255,7 +284,6 @@ void run(void) {
     // Initialize vulkan:
     //
     N_GraphicsState *gs = n_graphics_initialize();
-    findPhysicalDevice();
     createDevice(gs);
     createBuffer();
     createDescriptorSetLayout();
@@ -297,56 +325,11 @@ void saveRenderedImage(void) {
     unsigned error = lodepng_encode32_file("./mandelbrot.png", image, WIDTH, HEIGHT);
     if (error) printf("encoder error %d: %s", error, lodepng_error_text(error));
 
+    signed a;
+
     free(image);
 }
 
-void findPhysicalDevice(void) {
-    /*
-    In this function, we find a physical device that can be used with Vulkan.
-    */
-
-    /*
-    So, first we will list all physical devices on the system with vkEnumeratePhysicalDevices .
-    */
-    uint32_t deviceCount;
-    vkEnumeratePhysicalDevices(instance, &deviceCount, NULL);
-    if (deviceCount == 0) {
-        printf("could not find a device with vulkan support");
-    }
-
-    VkPhysicalDevice devices[deviceCount];
-    vkEnumeratePhysicalDevices(instance, &deviceCount, devices);
-
-    /*
-    Next, we choose a device that can be used for our purposes. 
-
-    With VkPhysicalDeviceFeatures(), we can retrieve a fine-grained list of physical features supported by the device.
-    However, in this demo, we are simply launching a simple compute shader, and there are no 
-    special physical features demanded for this task.
-
-    With VkPhysicalDeviceProperties(), we can obtain a list of physical device properties. Most importantly,
-    we obtain a list of physical device limitations. For this application, we launch a compute shader,
-    and the maximum size of the workgroups and total number of compute shader invocations is limited by the physical device,
-    and we should ensure that the limitations named maxComputeWorkGroupCount, maxComputeWorkGroupInvocations and 
-    maxComputeWorkGroupSize are not exceeded by our application.  Moreover, we are using a storage buffer in the compute shader,
-    and we should ensure that it is not larger than the device can handle, by checking the limitation maxStorageBufferRange. 
-
-    However, in our application, the workgroup size and total number of shader invocations is relatively small, and the storage buffer is
-    not that large, and thus a vast majority of devices will be able to handle it. This can be verified by looking at some devices at_
-    http://vulkan.gpuinfo.org/
-
-    Therefore, to keep things simple and clean, we will not perform any such checks here, and just pick the first physical
-    device in the list. But in a real and serious application, those limitations should certainly be taken into account.
-
-    */
-    for (uint32_t i = 0; i < deviceCount; i++) {
-        VkPhysicalDevice device = devices[i];
-        if (TRUE) { // As above stated, we do no feature checks, so just accept.
-            physicalDevice = device;
-            break;
-        }
-    }
-}
 
 // Returns the index of a queue family that supports compute operations. 
 uint32_t getComputeQueueFamilyIndex(void) {
