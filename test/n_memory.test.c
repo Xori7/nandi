@@ -11,8 +11,8 @@ Bool n_test_arena_alloc_after_clear(void) {
     if (err == N_ERR_OK) {
         return TRUE;
     } else {
-        N_UNWRAP(n_debug_print("expected: %s", n_err_to_str(N_ERR_OK)));
-        N_UNWRAP(n_debug_print("  actual: %s", n_err_to_str(err)));
+        n_debug_print("expected: %s", n_err_to_str(N_ERR_OK));
+        n_debug_print("  actual: %s", n_err_to_str(err));
         return FALSE;
     }
 }
@@ -27,8 +27,8 @@ Bool n_test_arena_overflow(void) {
     if (err == N_ERR_ARENA_OVERFLOW) {
         return TRUE;
     } else {
-        N_UNWRAP(n_debug_print("expected: %s", n_err_to_str(N_ERR_ARENA_OVERFLOW)));
-        N_UNWRAP(n_debug_print("  actual: %s", n_err_to_str(err)));
+        n_debug_print("expected: %s", n_err_to_str(N_ERR_ARENA_OVERFLOW));
+        n_debug_print("  actual: %s", n_err_to_str(err));
         return FALSE;
     }
 }
@@ -49,8 +49,8 @@ Bool n_test_arena_alloc_alignment(void) {
     if (offset == EXPECT) {
         return TRUE;
     } else {
-        N_UNWRAP(n_debug_print("expected: %lld", EXPECT));
-        N_UNWRAP(n_debug_print("  actual: %lld", offset));
+        n_debug_print("expected: %lld", EXPECT);
+        n_debug_print("  actual: %lld", offset);
         return FALSE;
     }
 }

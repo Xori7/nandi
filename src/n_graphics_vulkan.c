@@ -23,7 +23,7 @@ const Bool enableValidationLayers = TRUE;
     VkResult res = (f);																					\
     if (res != VK_SUCCESS)																				\
     {																									\
-        printf("Fatal : VkResult is %d in %s at line %d\n", res,  __FILE__, __LINE__); \
+        n_debug_err("Fatal : VkResult is %d in %s at line %d\n", res,  __FILE__, __LINE__); \
         assert(res == VK_SUCCESS);																		\
     }																									\
 }
@@ -89,9 +89,6 @@ VkDeviceMemory bufferMemory;
     
 uint32_t bufferSize; // size of `buffer` in bytes.
 
-uint32_t enabledLayersCount = 0;
-const char* enabledLayers[16];
-
 /*
 In order to execute commands on a device(GPU), the commands must be submitted
 to a queue. The commands are stored in a command buffer, and this command buffer
@@ -112,10 +109,135 @@ This variable keeps track of the index of that queue in its family.
 */
 uint32_t queueFamilyIndex;
 
+typedef struct {
+    U32 enabled_layer_count;
+    const char* enabled_layers[256];
+    U32 enabled_extension_count;
+    const char *enabled_extensions[256];
+} N_VkLayersInfo;
 
-void createInstance(void);
+typedef struct N_GraphicsState N_GraphicsState;
+
+struct N_GraphicsState {
+    N_VkLayersInfo layers_info;
+};
+
+static N_VkLayersInfo n_vk_enable_validation_layers() {
+    /*
+    We get all supported layers with vkEnumerateInstanceLayerProperties.
+    */
+    uint32_t layer_count;
+    VkLayerProperties layer_properties[256];
+    vkEnumerateInstanceLayerProperties(&layer_count, NULL);
+    vkEnumerateInstanceLayerProperties(&layer_count, layer_properties);
+
+    /*
+    And then we simply check if VK_LAYER_LUNARG_standard_validation is among the supported layers.
+    */
+    const char *VK_LAYER_KHRONOS_VALIDATION = "VK_LAYER_KHRONOS_validation";
+    Bool found_layer = FALSE;
+    for (uint32_t i = 0; i < layer_count; i++) {
+        if (strcmp(VK_LAYER_KHRONOS_VALIDATION, layer_properties[i].layerName) == 0) {
+            found_layer = TRUE;
+            break;
+        }
+    }
+    if (!found_layer) {
+        n_debug_warn("Vulkan layer %s not supported", VK_LAYER_KHRONOS_VALIDATION);
+    }
+
+    N_VkLayersInfo layers_info = {0};
+    layers_info.enabled_layers[layers_info.enabled_layer_count++] = (VK_LAYER_KHRONOS_VALIDATION);
+
+    uint32_t extensionCount;
+    vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, NULL);
+    VkExtensionProperties extensionProperties[extensionCount];
+    vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, extensionProperties);
+
+    Bool foundExtension = FALSE;
+    for (uint32_t i = 0; i < extensionCount; i++) {
+        VkExtensionProperties prop = extensionProperties[i];
+        if (strcmp(VK_EXT_DEBUG_REPORT_EXTENSION_NAME, prop.extensionName) == 0) {
+            foundExtension = TRUE;
+            break;
+        }
+
+    }
+
+    if (!foundExtension) {
+        n_debug_warn("Extension VK_EXT_DEBUG_REPORT_EXTENSION_NAME not supported");
+    }
+    layers_info.enabled_extensions[layers_info.enabled_extension_count++] = VK_EXT_DEBUG_REPORT_EXTENSION_NAME;
+    return layers_info;
+}
+
+static VKAPI_ATTR VkBool32 VKAPI_CALL n_vk_debug_report_callback(
+    VkDebugReportFlagsEXT                       flags,
+    VkDebugReportObjectTypeEXT                  objectType,
+    uint64_t                                    object,
+    size_t                                      location,
+    int32_t                                     messageCode,
+    const char*                                 pLayerPrefix,
+    const char*                                 pMessage,
+    void*                                       pUserData) {
+
+    n_debug_info("Vulkan Debug Report: %s: %s\n", pLayerPrefix, pMessage);
+
+    return VK_FALSE;
+ }
+
+extern N_GraphicsState *n_graphics_initialize(void) {
+    VkApplicationInfo applicationInfo = {0};
+    applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    applicationInfo.pApplicationName = "nandi test";
+    applicationInfo.applicationVersion = 0;
+    applicationInfo.pEngineName = "nandi";
+    applicationInfo.engineVersion = 0;
+    applicationInfo.apiVersion = VK_API_VERSION_1_3;;
+    
+    VkInstanceCreateInfo createInfo = {0};
+    createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    createInfo.flags = 0;
+    createInfo.pApplicationInfo = &applicationInfo;
+    
+    // Give our desired layers and extensions to vulkan.
+    N_VkLayersInfo layers_info = n_vk_enable_validation_layers();
+    if (enableValidationLayers) {
+        createInfo.enabledLayerCount = layers_info.enabled_layer_count;
+        createInfo.ppEnabledLayerNames = layers_info.enabled_layers;
+        createInfo.enabledExtensionCount = layers_info.enabled_extension_count;
+        createInfo.ppEnabledExtensionNames = layers_info.enabled_extensions;
+    }
+    VK_CHECK_RESULT(vkCreateInstance(&createInfo, NULL, &instance));
+
+    /*
+    Register a callback function for the extension VK_EXT_DEBUG_REPORT_EXTENSION_NAME, so that warnings emitted from the validation
+    layer are actually printed.
+    */
+    if (enableValidationLayers) {
+        VkDebugReportCallbackCreateInfoEXT createInfo = {0};
+        createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
+        createInfo.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT;
+        createInfo.pfnCallback = &n_vk_debug_report_callback;
+
+        // We have to explicitly load this function.
+        PFN_vkCreateDebugReportCallbackEXT vk_create_debug_report_callbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugReportCallbackEXT");
+
+        if (vk_create_debug_report_callbackEXT == NULL) {
+            n_debug_err("Could not load vkCreateDebugReportCallbackEXT");
+        }
+
+        // Create and register callback.
+        VK_CHECK_RESULT(vk_create_debug_report_callbackEXT(instance, &createInfo, NULL, &debugReportCallback));
+    }
+
+    N_GraphicsState *graphicsState = malloc(sizeof(*graphicsState));
+    graphicsState->layers_info = layers_info;
+    return graphicsState;
+}
+
 void findPhysicalDevice(void);
-void createDevice(void);
+void createDevice(N_GraphicsState *graphics_state);
 void createBuffer(void);
 void createDescriptorSetLayout(void);
 void createDescriptorSet(void);
@@ -131,9 +253,10 @@ void run(void) {
 
     int i = 0;
     // Initialize vulkan:
-    createInstance();
+    //
+    N_GraphicsState *gs = n_graphics_initialize();
     findPhysicalDevice();
-    createDevice();
+    createDevice(gs);
     createBuffer();
     createDescriptorSetLayout();
     createDescriptorSet();
@@ -175,146 +298,6 @@ void saveRenderedImage(void) {
     if (error) printf("encoder error %d: %s", error, lodepng_error_text(error));
 
     free(image);
-}
-
-static VKAPI_ATTR VkBool32 VKAPI_CALL debugReportCallbackFn(
-    VkDebugReportFlagsEXT                       flags,
-    VkDebugReportObjectTypeEXT                  objectType,
-    uint64_t                                    object,
-    size_t                                      location,
-    int32_t                                     messageCode,
-    const char*                                 pLayerPrefix,
-    const char*                                 pMessage,
-    void*                                       pUserData) {
-
-    printf("Debug Report: %s: %s\n", pLayerPrefix, pMessage);
-
-    return VK_FALSE;
- }
-
-void createInstance(void) {
-    uint32_t enabledExtensionsCount = 0;
-    const char * enabledExtensions[256];
-
-    /*
-    By enabling validation layers, Vulkan will emit warnings if the API
-    is used incorrectly. We shall enable the layer VK_LAYER_LUNARG_standard_validation,
-    which is basically a collection of several useful validation layers.
-    */
-    if (enableValidationLayers) {
-        /*
-        We get all supported layers with vkEnumerateInstanceLayerProperties.
-        */
-        uint32_t layerCount;
-        vkEnumerateInstanceLayerProperties(&layerCount, NULL);
-
-        VkLayerProperties layerProperties[256];
-        vkEnumerateInstanceLayerProperties(&layerCount, layerProperties);
-
-        /*
-        And then we simply check if VK_LAYER_LUNARG_standard_validation is among the supported layers.
-        */
-        Bool foundLayer = FALSE;
-        for (uint32_t i = 0; i < layerCount; i++) {
-            VkLayerProperties prop = layerProperties[i];
-            if (strcmp("VK_LAYER_KHRONOS_validation", prop.layerName) == 0) {
-                foundLayer = TRUE;
-                break;
-            }
-
-        }
-        
-        if (!foundLayer) {
-            printf("Layer VK_LAYER_LUNARG_standard_validation not supported\n");
-        }
-        enabledLayers[enabledLayersCount++] = ("VK_LAYER_KHRONOS_validation"); // Alright, we can use this layer.
-
-        /*
-        We need to enable an extension named VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
-        in order to be able to print the warnings emitted by the validation layer.
-
-        So again, we just check if the extension is among the supported extensions.
-        */
-        
-        uint32_t extensionCount;
-        
-        vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, NULL);
-        VkExtensionProperties extensionProperties[extensionCount];
-        vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, extensionProperties);
-
-        Bool foundExtension = FALSE;
-        for (uint32_t i = 0; i < extensionCount; i++) {
-            VkExtensionProperties prop = extensionProperties[i];
-            if (strcmp(VK_EXT_DEBUG_REPORT_EXTENSION_NAME, prop.extensionName) == 0) {
-                foundExtension = TRUE;
-                break;
-            }
-
-        }
-
-        if (!foundExtension) {
-            printf("Extension VK_EXT_DEBUG_REPORT_EXTENSION_NAME not supported\n");
-        }
-        enabledExtensions[enabledExtensionsCount++] = VK_EXT_DEBUG_REPORT_EXTENSION_NAME;
-    }		
-
-    /*
-    Next, we actually create the instance.
-    
-    */
-    
-    /*
-    Contains application info. This is actually not that important.
-    The only real important field is apiVersion.
-    */
-    VkApplicationInfo applicationInfo = {0};
-    applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    applicationInfo.pApplicationName = "Hello world app";
-    applicationInfo.applicationVersion = 0;
-    applicationInfo.pEngineName = "awesomeengine";
-    applicationInfo.engineVersion = 0;
-    applicationInfo.apiVersion = VK_API_VERSION_1_3;;
-    
-    VkInstanceCreateInfo createInfo = {0};
-    createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    createInfo.flags = 0;
-    createInfo.pApplicationInfo = &applicationInfo;
-    
-    // Give our desired layers and extensions to vulkan.
-    createInfo.enabledLayerCount = enabledLayersCount;
-    createInfo.ppEnabledLayerNames = enabledLayers;
-    createInfo.enabledExtensionCount = enabledExtensionsCount;
-    createInfo.ppEnabledExtensionNames = enabledExtensions;
-
-    /*
-    Actually create the instance.
-    Having created the instance, we can actually start using vulkan.
-    */
-    VK_CHECK_RESULT(vkCreateInstance(
-        &createInfo,
-        NULL,
-        &instance));
-
-    /*
-    Register a callback function for the extension VK_EXT_DEBUG_REPORT_EXTENSION_NAME, so that warnings emitted from the validation
-    layer are actually printed.
-    */
-    if (enableValidationLayers) {
-        VkDebugReportCallbackCreateInfoEXT createInfo = {0};
-        createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
-        createInfo.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT;
-        createInfo.pfnCallback = &debugReportCallbackFn;
-
-        // We have to explicitly load this function.
-        PFN_vkCreateDebugReportCallbackEXT vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugReportCallbackEXT");
-        if (vkCreateDebugReportCallbackEXT == NULL) {
-            printf("Could not load vkCreateDebugReportCallbackEXT");
-        }
-
-        // Create and register callback.
-        VK_CHECK_RESULT(vkCreateDebugReportCallbackEXT(instance, &createInfo, NULL, &debugReportCallback));
-    }
-
 }
 
 void findPhysicalDevice(void) {
@@ -393,7 +376,7 @@ uint32_t getComputeQueueFamilyIndex(void) {
     return i;
 }
 
-void createDevice(void) {
+void createDevice(N_GraphicsState *graphics_state) {
     /*
     We create the logical device in this function.
     */
@@ -419,8 +402,8 @@ void createDevice(void) {
     VkPhysicalDeviceFeatures deviceFeatures = {0};
 
     deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    deviceCreateInfo.enabledLayerCount = enabledLayersCount;  // need to specify validation layers here as well.
-    deviceCreateInfo.ppEnabledLayerNames = enabledLayers;
+    deviceCreateInfo.enabledLayerCount = graphics_state->layers_info.enabled_layer_count;  // need to specify validation layers here as well.
+    deviceCreateInfo.ppEnabledLayerNames = graphics_state->layers_info.enabled_layers;
     deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo; // when creating the logical device, we also specify what queues it has.
     deviceCreateInfo.queueCreateInfoCount = 1;
     deviceCreateInfo.pEnabledFeatures = &deviceFeatures;

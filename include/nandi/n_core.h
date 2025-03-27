@@ -70,11 +70,11 @@ extern void n_unwrap(N_Error error, const char *file, I32 line);
 // # DEBUG #
 #define N_DEBUG_FILE "./debug/log.txt"
 
-extern N_Error n_debug_log(const char *fmt, ...);
-extern N_Error n_debug_warn(const char *fmt, ...);
-extern N_Error n_debug_err(const char *fmt, ...);
-extern N_Error n_debug_info(const char *fmt, ...);
-extern N_Error n_debug_test(const char *fmt, ...);
-extern N_Error n_debug_print(const char *fmt, ...);
+extern void n_debug_log(const char *fmt, ...);
+extern void n_debug_warn(const char *fmt, ...);
+extern void n_debug_err(const char *fmt, ...);
+extern void n_debug_info(const char *fmt, ...);
+extern void n_debug_test(const char *fmt, ...);
+extern void n_debug_print(const char *fmt, ...);
 
 #endif // !N_CORE_H

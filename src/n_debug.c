@@ -53,49 +53,43 @@ static N_Error log_to_file(const char *prefix, const char *fmt, va_list args) {
     return N_ERR_OK;
 }
 
-N_Error n_debug_log(const char *fmt, ...) {
+void n_debug_log(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    N_Error err = log_to_file("LOG:  ", fmt, args);
+    N_UNWRAP(log_to_file("LOG:  ", fmt, args));
     va_end(args);
-    return err;
 }
 
-N_Error n_debug_warn(const char *fmt, ...) {
+void n_debug_warn(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    N_Error err = log_to_file("WARN: ", fmt, args);
+    N_UNWRAP(log_to_file("WARN: ", fmt, args));
     va_end(args);
-    return err;
 }
 
-N_Error n_debug_err(const char *fmt, ...) {
+void n_debug_err(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    N_Error err = log_to_file("ERR:  ", fmt, args);
+    N_UNWRAP(log_to_file("ERR:  ", fmt, args));
     va_end(args);
-    return err;
 }
 
-N_Error n_debug_info(const char *fmt, ...) {
+void n_debug_info(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    N_Error err = log_to_file("INFO: ", fmt, args);
+    N_UNWRAP(log_to_file("INFO: ", fmt, args));
     va_end(args);
-    return err;
 }
-extern N_Error n_debug_test(const char *fmt, ...) {
+extern void n_debug_test(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    N_Error err = log_to_file("TEST: ", fmt, args);
+    N_UNWRAP(log_to_file("TEST: ", fmt, args));
     va_end(args);
-    return err;
 }
 
-extern N_Error n_debug_print(const char *fmt, ...) {
+extern void n_debug_print(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    N_Error err = log_to_file(NULL, fmt, args);
+    N_UNWRAP(log_to_file(NULL, fmt, args));
     va_end(args);
-    return err;
 }
