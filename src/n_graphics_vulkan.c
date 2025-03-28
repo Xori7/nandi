@@ -8,8 +8,8 @@
 #include <string.h>
 #include "lodepng.h"
 
-const int WIDTH = 3200; // Size of rendered mandelbrot set.
-const int HEIGHT = 2400; // Size of renderered mandelbrot set.
+const int WIDTH = 1000; // Size of rendered mandelbrot set.
+const int HEIGHT = 1000; // Size of renderered mandelbrot set.
 const int WORKGROUP_SIZE = 32; // Workgroup size in compute shader.
 
 #ifdef NDEBUG
@@ -466,7 +466,9 @@ void createDescriptorSetLayout(void) {
 // Read file into array of bytes, and cast to uint32_t*, then return.
 // The data has been padded, so that it fits into an array uint32_t.
 uint32_t* read_file(uint32_t *length, const char* filename) {
-    FILE* fp = fopen(filename, "rb");
+    FILE* fp;
+    fopen_s(&fp, filename, "rb");
+
     if (fp == NULL) {
         printf("Could not find or open file: %s\n", filename);
     }
