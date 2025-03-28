@@ -285,8 +285,8 @@ extern void n_graphics_initialize(void) {
 
 struct N_GraphicsBuffer {
     VkBuffer buffer;
-    VkDeviceMemory bufferMemory;
-    uint32_t bufferSize;
+    VkDeviceMemory buffer_memory;
+    uint32_t buffer_size;
 };
 
 uint32_t findMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags properties) {
@@ -326,7 +326,7 @@ static void n_vk_create_descriptor_set(N_GraphicsBuffer buffer) {
     VkDescriptorBufferInfo descriptorBufferInfo = {0};
     descriptorBufferInfo.buffer = buffer.buffer;
     descriptorBufferInfo.offset = 0;
-    descriptorBufferInfo.range = buffer.bufferSize;
+    descriptorBufferInfo.range = buffer.buffer_size;
 
     VkWriteDescriptorSet writeDescriptorSet = {0};
     writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -347,7 +347,7 @@ extern N_GraphicsBuffer n_graphics_buffer_create(U64 size) {
     bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     N_GraphicsBuffer graphics_buffer = {
-        .bufferSize = size
+        .buffer_size = size
     };
 
     VK_CHECK_RESULT(vkCreateBuffer(_gs.device.device, &bufferCreateInfo, NULL, &graphics_buffer.buffer));
@@ -361,10 +361,10 @@ extern N_GraphicsBuffer n_graphics_buffer_create(U64 size) {
     allocateInfo.memoryTypeIndex = findMemoryType(
             memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
-    VK_CHECK_RESULT(vkAllocateMemory(_gs.device.device, &allocateInfo, NULL, &graphics_buffer.bufferMemory)); // allocate memory on device.
+    VK_CHECK_RESULT(vkAllocateMemory(_gs.device.device, &allocateInfo, NULL, &graphics_buffer.buffer_memory)); // allocate memory on device.
     
     // Now associate that allocated memory with the buffer. With that, the buffer is backed by actual memory. 
-    VK_CHECK_RESULT(vkBindBufferMemory(_gs.device.device, graphics_buffer.buffer, graphics_buffer.bufferMemory, 0));
+    VK_CHECK_RESULT(vkBindBufferMemory(_gs.device.device, graphics_buffer.buffer, graphics_buffer.buffer_memory, 0));
 
     n_vk_create_descriptor_set(graphics_buffer);
 
@@ -372,14 +372,13 @@ extern N_GraphicsBuffer n_graphics_buffer_create(U64 size) {
 }
 
 extern void n_graphics_buffer_destroy(N_GraphicsBuffer buffer) {
-    vkFreeMemory(_gs.device.device, buffer.bufferMemory, NULL);
+    vkFreeMemory(_gs.device.device, buffer.buffer_memory, NULL);
     vkDestroyBuffer(_gs.device.device, buffer.buffer, NULL);	
 }
 extern void n_graphics_buffer_mmap(N_GraphicsBuffer buffer, void *ptr) {
 }
 
 void createDescriptorSetLayout(void);
-void createDescriptorSet(N_GraphicsBuffer buffer);
 void createComputePipeline(const char *shader_path);
 void createCommandBuffer(void);
 void runCommandBuffer(void);
@@ -410,7 +409,7 @@ void saveRenderedImage(N_GraphicsBuffer buffer) {
     n_debug_info("Saving the image...");
     void* mappedMemory = NULL;
     // Map the buffer memory, so that we can read from it on the CPU.
-    vkMapMemory(_gs.device.device, buffer.bufferMemory, 0, buffer.bufferSize, 0, &mappedMemory);
+    vkMapMemory(_gs.device.device, buffer.buffer_memory, 0, buffer.buffer_size, 0, &mappedMemory);
     Pixel* pmappedMemory = (Pixel *)mappedMemory;
 
     // Get the color data from the buffer, and cast it to bytes.
@@ -423,7 +422,7 @@ void saveRenderedImage(N_GraphicsBuffer buffer) {
         image[i*4 + 3] = ((unsigned char)(255.0f * (pmappedMemory[i].a)));
     }
     // Done reading, so unmap.
-    vkUnmapMemory(_gs.device.device, buffer.bufferMemory);
+    vkUnmapMemory(_gs.device.device, buffer.buffer_memory);
 
     // Now we save the acquired color data to a .png.
     unsigned error = lodepng_encode32_file("./mandelbrot.png", image, WIDTH, HEIGHT);
@@ -433,20 +432,6 @@ void saveRenderedImage(N_GraphicsBuffer buffer) {
 }
 
 void createDescriptorSetLayout(void) {
-    /*
-    Here we specify a descriptor set layout. This allows us to bind our descriptors to 
-    resources in the shader. 
-
-    */
-
-    /*
-    Here we specify a binding of type VK_DESCRIPTOR_TYPE_STORAGE_BUFFER to the binding point
-    0. This binds to 
-
-      layout(std140, binding = 0) buffer buf
-
-    in the compute shader.
-    */
     VkDescriptorSetLayoutBinding descriptorSetLayoutBinding = {0};
     descriptorSetLayoutBinding.binding = 0; // binding = 0
     descriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -458,7 +443,6 @@ void createDescriptorSetLayout(void) {
     descriptorSetLayoutCreateInfo.bindingCount = 1; // only a single binding in this descriptor set layout. 
     descriptorSetLayoutCreateInfo.pBindings = &descriptorSetLayoutBinding; 
 
-    // Create the descriptor set layout. 
     VK_CHECK_RESULT(vkCreateDescriptorSetLayout(_gs.device.device, &descriptorSetLayoutCreateInfo, NULL, &descriptorSetLayout));
 }
 

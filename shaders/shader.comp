@@ -16,6 +16,11 @@ layout(std140, binding = 0) buffer buf
     Pixel imageData[];
 };
 
+layout(std140, binding = 1) buffer verts
+{
+    vec3 vertices[];
+};
+
 void main() {
     if (gl_GlobalInvocationID.x >= WIDTH || gl_GlobalInvocationID.y >= HEIGHT) {
         return;
