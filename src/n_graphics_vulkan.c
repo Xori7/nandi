@@ -302,6 +302,43 @@ uint32_t findMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags propertie
     return (uint32_t)-1;
 }
 
+static void n_vk_create_descriptor_set(N_GraphicsBuffer buffer) {
+    VkDescriptorPoolSize descriptorPoolSize = {0};
+    descriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    descriptorPoolSize.descriptorCount = 1;
+
+    VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {0};
+    descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    descriptorPoolCreateInfo.maxSets = 1; // we only need to allocate one descriptor set from the pool.
+    descriptorPoolCreateInfo.poolSizeCount = 1;
+    descriptorPoolCreateInfo.pPoolSizes = &descriptorPoolSize;
+
+    VK_CHECK_RESULT(vkCreateDescriptorPool(_gs.device.device, &descriptorPoolCreateInfo, NULL, &descriptorPool));
+
+    VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {0};
+    descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO; 
+    descriptorSetAllocateInfo.descriptorPool = descriptorPool; // pool to allocate from.
+    descriptorSetAllocateInfo.descriptorSetCount = 1; // allocate a single descriptor set.
+    descriptorSetAllocateInfo.pSetLayouts = &descriptorSetLayout;
+
+    VK_CHECK_RESULT(vkAllocateDescriptorSets(_gs.device.device, &descriptorSetAllocateInfo, &descriptorSet));
+
+    VkDescriptorBufferInfo descriptorBufferInfo = {0};
+    descriptorBufferInfo.buffer = buffer.buffer;
+    descriptorBufferInfo.offset = 0;
+    descriptorBufferInfo.range = buffer.bufferSize;
+
+    VkWriteDescriptorSet writeDescriptorSet = {0};
+    writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeDescriptorSet.dstSet = descriptorSet;
+    writeDescriptorSet.dstBinding = 0;
+    writeDescriptorSet.descriptorCount = 1;
+    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writeDescriptorSet.pBufferInfo = &descriptorBufferInfo;
+
+    vkUpdateDescriptorSets(_gs.device.device, 1, &writeDescriptorSet, 0, NULL);
+}
+
 extern N_GraphicsBuffer n_graphics_buffer_create(U64 size) {
     VkBufferCreateInfo bufferCreateInfo = {0};
     bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -329,6 +366,8 @@ extern N_GraphicsBuffer n_graphics_buffer_create(U64 size) {
     // Now associate that allocated memory with the buffer. With that, the buffer is backed by actual memory. 
     VK_CHECK_RESULT(vkBindBufferMemory(_gs.device.device, graphics_buffer.buffer, graphics_buffer.bufferMemory, 0));
 
+    n_vk_create_descriptor_set(graphics_buffer);
+
     return graphics_buffer;
 }
 
@@ -341,7 +380,7 @@ extern void n_graphics_buffer_mmap(N_GraphicsBuffer buffer, void *ptr) {
 
 void createDescriptorSetLayout(void);
 void createDescriptorSet(N_GraphicsBuffer buffer);
-void createComputePipeline(void);
+void createComputePipeline(const char *shader_path);
 void createCommandBuffer(void);
 void runCommandBuffer(void);
 void saveRenderedImage(N_GraphicsBuffer buffer);
@@ -352,10 +391,10 @@ void run(void) {
 
     int i = 0;
     n_graphics_initialize();
-    N_GraphicsBuffer buffer = n_graphics_buffer_create(buffer_size);
     createDescriptorSetLayout();
-    createDescriptorSet(buffer);
-    createComputePipeline();
+    N_GraphicsBuffer buffer = n_graphics_buffer_create(buffer_size);
+
+    createComputePipeline("./shaders/shader.comp");
     createCommandBuffer();
 
     runCommandBuffer();
@@ -423,67 +462,10 @@ void createDescriptorSetLayout(void) {
     VK_CHECK_RESULT(vkCreateDescriptorSetLayout(_gs.device.device, &descriptorSetLayoutCreateInfo, NULL, &descriptorSetLayout));
 }
 
-void createDescriptorSet(N_GraphicsBuffer buffer) {
-    /*
-    So we will allocate a descriptor set here.
-    But we need to first create a descriptor pool to do that. 
-    */
-
-    /*
-    Our descriptor pool can only allocate a single storage buffer.
-    */
-    VkDescriptorPoolSize descriptorPoolSize = {0};
-    descriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    descriptorPoolSize.descriptorCount = 1;
-
-    VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {0};
-    descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    descriptorPoolCreateInfo.maxSets = 1; // we only need to allocate one descriptor set from the pool.
-    descriptorPoolCreateInfo.poolSizeCount = 1;
-    descriptorPoolCreateInfo.pPoolSizes = &descriptorPoolSize;
-
-    // create descriptor pool.
-    VK_CHECK_RESULT(vkCreateDescriptorPool(_gs.device.device, &descriptorPoolCreateInfo, NULL, &descriptorPool));
-
-    /*
-    With the pool allocated, we can now allocate the descriptor set. 
-    */
-    VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {0};
-    descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO; 
-    descriptorSetAllocateInfo.descriptorPool = descriptorPool; // pool to allocate from.
-    descriptorSetAllocateInfo.descriptorSetCount = 1; // allocate a single descriptor set.
-    descriptorSetAllocateInfo.pSetLayouts = &descriptorSetLayout;
-
-    // allocate descriptor set.
-    VK_CHECK_RESULT(vkAllocateDescriptorSets(_gs.device.device, &descriptorSetAllocateInfo, &descriptorSet));
-
-    /*
-    Next, we need to connect our actual storage buffer with the descrptor. 
-    We use vkUpdateDescriptorSets() to update the descriptor set.
-    */
-
-    // Specify the buffer to bind to the descriptor.
-    VkDescriptorBufferInfo descriptorBufferInfo = {0};
-    descriptorBufferInfo.buffer = buffer.buffer;
-    descriptorBufferInfo.offset = 0;
-    descriptorBufferInfo.range = buffer.bufferSize;
-
-    VkWriteDescriptorSet writeDescriptorSet = {0};
-    writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writeDescriptorSet.dstSet = descriptorSet; // write to this descriptor set.
-    writeDescriptorSet.dstBinding = 0; // write to the first, and only binding.
-    writeDescriptorSet.descriptorCount = 1; // update a single descriptor.
-    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER; // storage buffer.
-    writeDescriptorSet.pBufferInfo = &descriptorBufferInfo;
-
-    // perform the update of the descriptor set.
-    vkUpdateDescriptorSets(_gs.device.device, 1, &writeDescriptorSet, 0, NULL);
-}
 
 // Read file into array of bytes, and cast to uint32_t*, then return.
 // The data has been padded, so that it fits into an array uint32_t.
-uint32_t* readFile(uint32_t *length, const char* filename) {
-
+uint32_t* read_file(uint32_t *length, const char* filename) {
     FILE* fp = fopen(filename, "rb");
     if (fp == NULL) {
         printf("Could not find or open file: %s\n", filename);
@@ -510,24 +492,23 @@ uint32_t* readFile(uint32_t *length, const char* filename) {
     return (uint32_t *)str;
 }
 
-void createComputePipeline(void) {
-    /*
-    We create a compute pipeline here. 
-    */
-
-    /*
-    Create a shader module. A shader module basically just encapsulates some shader code.
-    */
-    uint32_t filelength = 0;
+void createComputePipeline(const char *shader_path) {
+    uint32_t file_length = 0;
     // the code in comp.spv was created by running the command:
     // glslangValidator.exe -V shader.comp
-    uint32_t* code = readFile(&filelength, "shaders/comp.spv");
-    VkShaderModuleCreateInfo createInfo = {0};
-    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.pCode = code;
-    createInfo.codeSize = filelength;
     
-    VK_CHECK_RESULT(vkCreateShaderModule(_gs.device.device, &createInfo, NULL, &computeShaderModule));
+    char spv_buffer[1000];
+    sprintf_s(spv_buffer, 1000, "%s.spv", shader_path);
+    char compile_buffer[1000];
+    sprintf_s(compile_buffer, 1000, "glslangValidator.exe -V %s -o %s", shader_path, spv_buffer);
+    assert(system(compile_buffer) == 0);
+    U32* code = read_file(&file_length, spv_buffer);
+    VkShaderModuleCreateInfo create_info = {0};
+    create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    create_info.pCode = code;
+    create_info.codeSize = file_length;
+    
+    VK_CHECK_RESULT(vkCreateShaderModule(_gs.device.device, &create_info, NULL, &computeShaderModule));
     free(code);
 
     /*
