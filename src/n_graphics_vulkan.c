@@ -34,43 +34,6 @@ typedef struct {
     float r, g, b, a;
 } Pixel;
 
-/*
-The pipeline specifies the pipeline that all graphics and compute commands pass though in Vulkan.
-
-We will be creating a simple compute pipeline in this application. 
-*/
-VkPipeline pipeline;
-VkPipelineLayout pipelineLayout;
-VkShaderModule computeShaderModule;
-
-/*
-The command buffer is used to record commands, that will be submitted to a queue.
-
-To allocate such command buffers, we use a command pool.
-*/
-VkCommandPool commandPool;
-VkCommandBuffer commandBuffer;
-
-/*
-
-Descriptors represent resources in shaders. They allow us to use things like
-uniform buffers, storage buffers and images in GLSL. 
-
-A single descriptor represents a single resource, and several descriptors are organized
-into descriptor sets, which are basically just collections of descriptors.
-*/
-VkDescriptorPool descriptorPool;
-VkDescriptorSet descriptorSet;
-VkDescriptorSetLayout descriptorSetLayout;
-
-/*
-Groups of queues that have the same capabilities(for instance, they all supports graphics and computer operations),
-are grouped into queue families. 
-
-When submitting a command buffer, you must specify to which queue in the family you are submitting to. 
-This variable keeps track of the index of that queue in its family. 
-*/
-uint32_t queueFamilyIndex;
 
 typedef struct {
     U32 enabled_layer_count;
@@ -91,6 +54,10 @@ typedef struct {
     VkDebugReportCallbackEXT debug_report_callback;
     VkInstance instance;
     N_VkGraphicsDevice device;
+    VkDescriptorSetLayout descriptor_set_layout; // universal layout for every shader
+    VkDescriptorPool descriptorPool;
+    VkCommandPool command_pool;
+    U32 queueFamilyIndex;
 } N_GraphicsState;
 
 static N_GraphicsState _gs;
@@ -211,8 +178,8 @@ uint32_t n_vk_get_compute_queue_family_index(VkPhysicalDevice physical_device) {
 static N_VkGraphicsDevice n_vk_create_device(VkPhysicalDevice physical_device) {
     VkDeviceQueueCreateInfo queueCreateInfo = {0};
     queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queueFamilyIndex = n_vk_get_compute_queue_family_index(physical_device); 
-    queueCreateInfo.queueFamilyIndex = queueFamilyIndex;
+    _gs.queueFamilyIndex = n_vk_get_compute_queue_family_index(physical_device); 
+    queueCreateInfo.queueFamilyIndex = _gs.queueFamilyIndex;
     queueCreateInfo.queueCount = 1; 
     float queuePriorities = 1.0;  
     queueCreateInfo.pQueuePriorities = &queuePriorities;
@@ -230,12 +197,58 @@ static N_VkGraphicsDevice n_vk_create_device(VkPhysicalDevice physical_device) {
     VkDevice device;
     VkQueue compute_queue;
     VK_CHECK_RESULT(vkCreateDevice(physical_device, &deviceCreateInfo, NULL, &device)); 
-    vkGetDeviceQueue(device, queueFamilyIndex, 0, &compute_queue);
+    vkGetDeviceQueue(device, _gs.queueFamilyIndex, 0, &compute_queue);
     return (N_VkGraphicsDevice) {
         .physical_device = physical_device,
         .device = device,
         .compute_queue = compute_queue
     };
+}
+
+VkDescriptorSetLayout n_vk_create_descriptor_set_layout() {
+    VkDescriptorSetLayoutBinding descriptorSetLayoutBinding[MAX_SHADER_BUFFER_COUNT];
+    for (U32 i = 0; i < MAX_SHADER_BUFFER_COUNT; i++) {
+        descriptorSetLayoutBinding[i] = (VkDescriptorSetLayoutBinding) {
+            .binding = i,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+        };
+    }
+    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {0};
+    descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    descriptorSetLayoutCreateInfo.bindingCount = MAX_SHADER_BUFFER_COUNT;
+    descriptorSetLayoutCreateInfo.pBindings = (const VkDescriptorSetLayoutBinding*)&descriptorSetLayoutBinding; 
+
+    VkDescriptorSetLayout layout = NULL;
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(_gs.device.device, &descriptorSetLayoutCreateInfo, NULL, &layout));
+    return layout;
+}
+
+VkDescriptorPool n_vk_create_descriptor_pool() {
+    VkDescriptorPoolSize descriptorPoolSize = {0};
+    descriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    descriptorPoolSize.descriptorCount = MAX_SHADER_BUFFER_COUNT;
+
+    VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {0};
+    descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    descriptorPoolCreateInfo.maxSets = MAX_SHADER_COUNT; // we only need to allocate one descriptor set from the pool.
+    descriptorPoolCreateInfo.poolSizeCount = 1;
+    descriptorPoolCreateInfo.pPoolSizes = &descriptorPoolSize;
+
+    VkDescriptorPool pool = NULL;
+    VK_CHECK_RESULT(vkCreateDescriptorPool(_gs.device.device, &descriptorPoolCreateInfo, NULL, &pool));
+    return pool;
+}
+
+VkCommandPool n_vk_create_command_pool() {
+    VkCommandPoolCreateInfo commandPoolCreateInfo = {0};
+    commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    commandPoolCreateInfo.flags = 0;
+    commandPoolCreateInfo.queueFamilyIndex = _gs.queueFamilyIndex;
+    VkCommandPool pool = NULL;
+    VK_CHECK_RESULT(vkCreateCommandPool(_gs.device.device, &commandPoolCreateInfo, NULL, &pool));
+    return pool;
 }
 
 extern void n_graphics_initialize(void) {
@@ -281,12 +294,15 @@ extern void n_graphics_initialize(void) {
 
     VkPhysicalDevice pd = n_vk_find_physical_device(_gs.instance);
     _gs.device = n_vk_create_device(pd);
+    _gs.descriptor_set_layout = n_vk_create_descriptor_set_layout();
+    _gs.descriptorPool = n_vk_create_descriptor_pool();
+    _gs.command_pool = n_vk_create_command_pool();
 }
 
 struct N_GraphicsBuffer {
     VkBuffer buffer;
-    VkDeviceMemory buffer_memory;
     uint32_t buffer_size;
+    VkDeviceMemory buffer_memory;
 };
 
 uint32_t findMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags properties) {
@@ -300,43 +316,6 @@ uint32_t findMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags propertie
             return i;
     }
     return (uint32_t)-1;
-}
-
-static void n_vk_create_descriptor_set(N_GraphicsBuffer buffer) {
-    VkDescriptorPoolSize descriptorPoolSize = {0};
-    descriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    descriptorPoolSize.descriptorCount = 1;
-
-    VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {0};
-    descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    descriptorPoolCreateInfo.maxSets = 1; // we only need to allocate one descriptor set from the pool.
-    descriptorPoolCreateInfo.poolSizeCount = 1;
-    descriptorPoolCreateInfo.pPoolSizes = &descriptorPoolSize;
-
-    VK_CHECK_RESULT(vkCreateDescriptorPool(_gs.device.device, &descriptorPoolCreateInfo, NULL, &descriptorPool));
-
-    VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {0};
-    descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO; 
-    descriptorSetAllocateInfo.descriptorPool = descriptorPool; // pool to allocate from.
-    descriptorSetAllocateInfo.descriptorSetCount = 1; // allocate a single descriptor set.
-    descriptorSetAllocateInfo.pSetLayouts = &descriptorSetLayout;
-
-    VK_CHECK_RESULT(vkAllocateDescriptorSets(_gs.device.device, &descriptorSetAllocateInfo, &descriptorSet));
-
-    VkDescriptorBufferInfo descriptorBufferInfo = {0};
-    descriptorBufferInfo.buffer = buffer.buffer;
-    descriptorBufferInfo.offset = 0;
-    descriptorBufferInfo.range = buffer.buffer_size;
-
-    VkWriteDescriptorSet writeDescriptorSet = {0};
-    writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writeDescriptorSet.dstSet = descriptorSet;
-    writeDescriptorSet.dstBinding = 0;
-    writeDescriptorSet.descriptorCount = 1;
-    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    writeDescriptorSet.pBufferInfo = &descriptorBufferInfo;
-
-    vkUpdateDescriptorSets(_gs.device.device, 1, &writeDescriptorSet, 0, NULL);
 }
 
 extern N_GraphicsBuffer n_graphics_buffer_create(U64 size) {
@@ -366,8 +345,6 @@ extern N_GraphicsBuffer n_graphics_buffer_create(U64 size) {
     // Now associate that allocated memory with the buffer. With that, the buffer is backed by actual memory. 
     VK_CHECK_RESULT(vkBindBufferMemory(_gs.device.device, graphics_buffer.buffer, graphics_buffer.buffer_memory, 0));
 
-    n_vk_create_descriptor_set(graphics_buffer);
-
     return graphics_buffer;
 }
 
@@ -375,12 +352,203 @@ extern void n_graphics_buffer_destroy(N_GraphicsBuffer buffer) {
     vkFreeMemory(_gs.device.device, buffer.buffer_memory, NULL);
     vkDestroyBuffer(_gs.device.device, buffer.buffer, NULL);	
 }
+
 extern void n_graphics_buffer_mmap(N_GraphicsBuffer buffer, void *ptr) {
 }
 
-void createDescriptorSetLayout(void);
-void createComputePipeline(const char *shader_path);
-void createCommandBuffer(void);
+struct N_Shader {
+    VkDescriptorSetLayout layout;
+    VkPipeline pipeline;
+    VkPipelineLayout pipeline_layout;
+    VkShaderModule shader_module;
+    VkDescriptorSet descriptorSet;
+
+    U8 buffer_count;
+    //N_GraphicsBuffer buffers[MAX_SHADER_BUFFER_COUNT];
+};
+
+// Read file into array of bytes, and cast to uint32_t*, then return.
+// The data has been padded, so that it fits into an array uint32_t.
+U32* read_file(uint32_t *length, const char* filename) {
+    FILE* fp;
+    fopen_s(&fp, filename, "rb");
+
+    if (fp == NULL) {
+        printf("Could not find or open file: %s\n", filename);
+    }
+
+    // get file size.
+    fseek(fp, 0, SEEK_END);
+    long filesize = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+
+    long filesizepadded = (long)(ceil(filesize / 4.0)) * 4;
+
+    // read file contents.
+    char *str = malloc((size_t)filesizepadded);
+    fread(str, (size_t)filesize, sizeof(char), fp);
+    fclose(fp);
+
+    // data padding. 
+    for (int i = filesize; i < filesizepadded; i++) {
+        str[i] = 0;
+    }
+
+    *length = (uint32_t)filesizepadded;
+    return (uint32_t *)str;
+}
+
+extern N_Shader n_graphics_shader_create(const char *shader_path) {
+    N_Shader shader = {0};
+    shader.buffer_count = 1;
+
+    VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {0};
+    descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO; 
+    descriptorSetAllocateInfo.descriptorPool = _gs.descriptorPool;
+    descriptorSetAllocateInfo.descriptorSetCount = shader.buffer_count;
+    descriptorSetAllocateInfo.pSetLayouts = &_gs.descriptor_set_layout;
+
+    VK_CHECK_RESULT(vkAllocateDescriptorSets(_gs.device.device, &descriptorSetAllocateInfo, &shader.descriptorSet));
+
+    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {0};
+    pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutCreateInfo.setLayoutCount = 1;
+    pipelineLayoutCreateInfo.pSetLayouts = &_gs.descriptor_set_layout; 
+    VK_CHECK_RESULT(vkCreatePipelineLayout(_gs.device.device, &pipelineLayoutCreateInfo, NULL, &shader.pipeline_layout));
+
+    uint32_t file_length = 0;
+    // the code in comp.spv was created by running the command:
+    // glslangValidator.exe -V shader.comp
+    
+    char spv_buffer[1000];
+    sprintf_s(spv_buffer, 1000, "%s.spv", shader_path);
+    char compile_buffer[1000];
+    sprintf_s(compile_buffer, 1000, "glslangValidator.exe -V %s -o %s", shader_path, spv_buffer);
+    assert(system(compile_buffer) == 0);
+
+    U32* code = read_file(&file_length, spv_buffer);
+    VkShaderModuleCreateInfo create_info = {0};
+    create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    create_info.pCode = code;
+    create_info.codeSize = file_length;
+    
+    VK_CHECK_RESULT(vkCreateShaderModule(_gs.device.device, &create_info, NULL, &shader.shader_module));
+    free(code);
+
+    VkPipelineShaderStageCreateInfo shaderStageCreateInfo = {0};
+    shaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shaderStageCreateInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    shaderStageCreateInfo.module = shader.shader_module;
+    shaderStageCreateInfo.pName = "main";
+
+
+    VkComputePipelineCreateInfo pipelineCreateInfo = {0};
+    pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    pipelineCreateInfo.stage = shaderStageCreateInfo;
+    pipelineCreateInfo.layout = shader.pipeline_layout;
+
+    VK_CHECK_RESULT(vkCreateComputePipelines(_gs.device.device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, NULL, &shader.pipeline));
+
+    return shader;
+}
+
+extern void n_graphics_shader_destroy(const N_Shader *shader) {
+    vkDestroyShaderModule(_gs.device.device, shader->shader_module, NULL);
+    vkDestroyPipelineLayout(_gs.device.device, shader->pipeline_layout, NULL);
+    vkDestroyPipeline(_gs.device.device, shader->pipeline, NULL);
+}
+
+extern void n_graphics_shader_set_buffer(const N_Shader *shader, const N_GraphicsBuffer *buffer, U32 binding_index) {
+    VkDescriptorBufferInfo descriptorBufferInfo = {0};
+    descriptorBufferInfo.buffer = buffer->buffer;
+    descriptorBufferInfo.offset = 0;
+    descriptorBufferInfo.range = buffer->buffer_size;
+
+    VkWriteDescriptorSet writeDescriptorSet = {0};
+    writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeDescriptorSet.dstSet = shader->descriptorSet;
+    writeDescriptorSet.dstBinding = binding_index;
+    writeDescriptorSet.descriptorCount = 1;
+    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writeDescriptorSet.pBufferInfo = &descriptorBufferInfo;
+    vkUpdateDescriptorSets(_gs.device.device, 1, &writeDescriptorSet, 0, NULL);
+}
+
+struct N_CommandBuffer {
+
+    VkCommandBuffer buffer;
+};
+
+extern const N_CommandBuffer* n_graphics_command_buffer_create(void) {
+    VkCommandBufferAllocateInfo commandBufferAllocateInfo = {0};
+    commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    commandBufferAllocateInfo.commandPool = _gs.command_pool; // specify the command pool to allocate from. 
+    commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    commandBufferAllocateInfo.commandBufferCount = 1; // allocate a single command buffer. 
+    
+    N_CommandBuffer *command_buffer = malloc(sizeof(*command_buffer));
+    VK_CHECK_RESULT(vkAllocateCommandBuffers(_gs.device.device, &commandBufferAllocateInfo, &command_buffer->buffer)); // allocate command buffer.
+    return command_buffer;
+}
+
+extern void n_graphics_command_buffer_destroy(const N_CommandBuffer *command_buffer) {
+    free((void*)command_buffer);
+}
+
+extern void n_graphics_command_buffer_begin(const N_CommandBuffer *command_buffer) {
+    VkCommandBufferBeginInfo beginInfo = {0};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = 0;//VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    VK_CHECK_RESULT(vkBeginCommandBuffer(command_buffer->buffer, &beginInfo));
+}
+extern void n_graphics_command_buffer_end(const N_CommandBuffer *command_buffer) {
+    VK_CHECK_RESULT(vkEndCommandBuffer(command_buffer->buffer));
+}
+
+extern void n_graphics_command_buffer_cmd_dispatch(const N_CommandBuffer *command_buffer, 
+        const N_Shader *shader, U32 work_g_x, U32 work_g_y, U32 work_g_z) {
+    vkCmdBindPipeline(command_buffer->buffer, VK_PIPELINE_BIND_POINT_COMPUTE, shader->pipeline);
+    vkCmdBindDescriptorSets(command_buffer->buffer, VK_PIPELINE_BIND_POINT_COMPUTE, 
+            shader->pipeline_layout, 0, 1, &shader->descriptorSet, 0, NULL);
+    vkCmdDispatch(command_buffer->buffer, work_g_x, work_g_y, work_g_z);
+}
+
+extern void n_graphics_command_buffer_submit(const N_CommandBuffer *command_buffer) {
+    VkSubmitInfo submitInfo = {0};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1; // submit a single command buffer
+    submitInfo.pCommandBuffers = &command_buffer->buffer; // the command buffer to submit.
+
+    /*
+      We create a fence.
+    */
+    VkFence fence;
+    VkFenceCreateInfo fenceCreateInfo = {0};
+    fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceCreateInfo.flags = 0;
+    VK_CHECK_RESULT(vkCreateFence(_gs.device.device, &fenceCreateInfo, NULL, &fence));
+
+    /*
+    We submit the command buffer on the queue, at the same time giving a fence.
+    */
+    VK_CHECK_RESULT(vkQueueSubmit(_gs.device.compute_queue, 1, &submitInfo, fence));
+    /*
+    The command will not have finished executing until the fence is signalled.
+    So we wait here.
+    We will directly after this read our buffer from the GPU,
+    and we will not be sure that the command has finished executing unless we wait for the fence.
+    Hence, we use a fence here.
+    */
+    VK_CHECK_RESULT(vkWaitForFences(_gs.device.device, 1, &fence, VK_TRUE, 100000000000));
+
+    vkDestroyFence(_gs.device.device, fence, NULL);
+}
+
+extern void n_graphics_command_buffer_reset(const N_CommandBuffer *command_buffer) {
+    VK_CHECK_RESULT(vkResetCommandBuffer(command_buffer->buffer, 0));
+}
+
+void createCommandBuffer(const N_Shader *shader);
 void runCommandBuffer(void);
 void saveRenderedImage(N_GraphicsBuffer buffer);
 void cleanup(void);
@@ -390,16 +558,24 @@ void run(void) {
 
     int i = 0;
     n_graphics_initialize();
-    createDescriptorSetLayout();
     N_GraphicsBuffer buffer = n_graphics_buffer_create(buffer_size);
+    N_Shader shader = n_graphics_shader_create("./shaders/shader.comp");
+    n_graphics_shader_set_buffer(&shader, &buffer, 0);
 
-    createComputePipeline("./shaders/shader.comp");
-    createCommandBuffer();
+    const N_CommandBuffer *command_buffer = n_graphics_command_buffer_create();
+    n_graphics_command_buffer_begin(command_buffer);
+    n_graphics_command_buffer_cmd_dispatch(command_buffer, &shader, 
+            (uint32_t)ceil(WIDTH / (float)(WORKGROUP_SIZE)), 
+            (uint32_t)ceil(HEIGHT / (float)(WORKGROUP_SIZE)), 
+            1);
 
-    runCommandBuffer();
+    n_graphics_command_buffer_end(command_buffer);
+    n_graphics_command_buffer_submit(command_buffer);
+    n_graphics_command_buffer_destroy(command_buffer);
 
     saveRenderedImage(buffer);
 
+    n_graphics_shader_destroy(&shader);
     n_graphics_buffer_destroy(buffer);
 
     cleanup();
@@ -431,197 +607,6 @@ void saveRenderedImage(N_GraphicsBuffer buffer) {
     free(image);
 }
 
-void createDescriptorSetLayout(void) {
-    VkDescriptorSetLayoutBinding descriptorSetLayoutBinding = {0};
-    descriptorSetLayoutBinding.binding = 0; // binding = 0
-    descriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    descriptorSetLayoutBinding.descriptorCount = 1;
-    descriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {0};
-    descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    descriptorSetLayoutCreateInfo.bindingCount = 1; // only a single binding in this descriptor set layout. 
-    descriptorSetLayoutCreateInfo.pBindings = &descriptorSetLayoutBinding; 
-
-    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(_gs.device.device, &descriptorSetLayoutCreateInfo, NULL, &descriptorSetLayout));
-}
-
-
-// Read file into array of bytes, and cast to uint32_t*, then return.
-// The data has been padded, so that it fits into an array uint32_t.
-uint32_t* read_file(uint32_t *length, const char* filename) {
-    FILE* fp;
-    fopen_s(&fp, filename, "rb");
-
-    if (fp == NULL) {
-        printf("Could not find or open file: %s\n", filename);
-    }
-
-    // get file size.
-    fseek(fp, 0, SEEK_END);
-    long filesize = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-
-    long filesizepadded = (long)(ceil(filesize / 4.0)) * 4;
-
-    // read file contents.
-    char *str = malloc((size_t)filesizepadded);
-    fread(str, (size_t)filesize, sizeof(char), fp);
-    fclose(fp);
-
-    // data padding. 
-    for (int i = filesize; i < filesizepadded; i++) {
-        str[i] = 0;
-    }
-
-    *length = (uint32_t)filesizepadded;
-    return (uint32_t *)str;
-}
-
-void createComputePipeline(const char *shader_path) {
-    uint32_t file_length = 0;
-    // the code in comp.spv was created by running the command:
-    // glslangValidator.exe -V shader.comp
-    
-    char spv_buffer[1000];
-    sprintf_s(spv_buffer, 1000, "%s.spv", shader_path);
-    char compile_buffer[1000];
-    sprintf_s(compile_buffer, 1000, "glslangValidator.exe -V %s -o %s", shader_path, spv_buffer);
-    assert(system(compile_buffer) == 0);
-    U32* code = read_file(&file_length, spv_buffer);
-    VkShaderModuleCreateInfo create_info = {0};
-    create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    create_info.pCode = code;
-    create_info.codeSize = file_length;
-    
-    VK_CHECK_RESULT(vkCreateShaderModule(_gs.device.device, &create_info, NULL, &computeShaderModule));
-    free(code);
-
-    /*
-    Now let us actually create the compute pipeline.
-    A compute pipeline is very simple compared to a graphics pipeline.
-    It only consists of a single stage with a compute shader. 
-
-    So first we specify the compute shader stage, and it's entry point(main).
-    */
-    VkPipelineShaderStageCreateInfo shaderStageCreateInfo = {0};
-    shaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    shaderStageCreateInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-    shaderStageCreateInfo.module = computeShaderModule;
-    shaderStageCreateInfo.pName = "main";
-
-    /*
-    The pipeline layout allows the pipeline to access descriptor sets. 
-    So we just specify the descriptor set layout we created earlier.
-    */
-    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {0};
-    pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutCreateInfo.setLayoutCount = 1;
-    pipelineLayoutCreateInfo.pSetLayouts = &descriptorSetLayout; 
-    VK_CHECK_RESULT(vkCreatePipelineLayout(_gs.device.device, &pipelineLayoutCreateInfo, NULL, &pipelineLayout));
-
-    VkComputePipelineCreateInfo pipelineCreateInfo = {0};
-    pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-    pipelineCreateInfo.stage = shaderStageCreateInfo;
-    pipelineCreateInfo.layout = pipelineLayout;
-
-    /*
-    Now, we finally create the compute pipeline. 
-    */
-    VK_CHECK_RESULT(vkCreateComputePipelines(
-        _gs.device.device, VK_NULL_HANDLE,
-        1, &pipelineCreateInfo,
-        NULL, &pipeline));
-}
-
-void createCommandBuffer(void) {
-    /*
-    We are getting closer to the end. In order to send commands to the device(GPU),
-    we must first record commands into a command buffer.
-    To allocate a command buffer, we must first create a command pool. So let us do that.
-    */
-    VkCommandPoolCreateInfo commandPoolCreateInfo = {0};
-    commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    commandPoolCreateInfo.flags = 0;
-    // the queue family of this command pool. All command buffers allocated from this command pool,
-    // must be submitted to queues of this family ONLY. 
-    commandPoolCreateInfo.queueFamilyIndex = queueFamilyIndex;
-    VK_CHECK_RESULT(vkCreateCommandPool(_gs.device.device, &commandPoolCreateInfo, NULL, &commandPool));
-
-    /*
-    Now allocate a command buffer from the command pool. 
-    */
-    VkCommandBufferAllocateInfo commandBufferAllocateInfo = {0};
-    commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    commandBufferAllocateInfo.commandPool = commandPool; // specify the command pool to allocate from. 
-    // if the command buffer is primary, it can be directly submitted to queues. 
-    // A secondary buffer has to be called from some primary command buffer, and cannot be directly 
-    // submitted to a queue. To keep things simple, we use a primary command buffer. 
-    commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    commandBufferAllocateInfo.commandBufferCount = 1; // allocate a single command buffer. 
-    VK_CHECK_RESULT(vkAllocateCommandBuffers(_gs.device.device, &commandBufferAllocateInfo, &commandBuffer)); // allocate command buffer.
-
-    /*
-    Now we shall start recording commands into the newly allocated command buffer. 
-    */
-    VkCommandBufferBeginInfo beginInfo = {0};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT; // the buffer is only submitted and used once in this application.
-    VK_CHECK_RESULT(vkBeginCommandBuffer(commandBuffer, &beginInfo)); // start recording commands.
-
-    /*
-    We need to bind a pipeline, AND a descriptor set before we dispatch.
-
-    The validation layer will NOT give warnings if you forget these, so be very careful not to forget them.
-    */
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &descriptorSet, 0, NULL);
-
-    /*
-    Calling vkCmdDispatch basically starts the compute pipeline, and executes the compute shader.
-    The number of workgroups is specified in the arguments.
-    If you are already familiar with compute shaders from OpenGL, this should be nothing new to you.
-    */
-    vkCmdDispatch(commandBuffer, (uint32_t)ceil(WIDTH / (float)(WORKGROUP_SIZE)), (uint32_t)ceil(HEIGHT / (float)(WORKGROUP_SIZE)), 1);
-
-    VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer)); // end recording commands.
-}
-
-void runCommandBuffer(void) {
-    /*
-    Now we shall finally submit the recorded command buffer to a queue.
-    */
-
-    VkSubmitInfo submitInfo = {0};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1; // submit a single command buffer
-    submitInfo.pCommandBuffers = &commandBuffer; // the command buffer to submit.
-
-    /*
-      We create a fence.
-    */
-    VkFence fence;
-    VkFenceCreateInfo fenceCreateInfo = {0};
-    fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceCreateInfo.flags = 0;
-    VK_CHECK_RESULT(vkCreateFence(_gs.device.device, &fenceCreateInfo, NULL, &fence));
-
-    /*
-    We submit the command buffer on the queue, at the same time giving a fence.
-    */
-    VK_CHECK_RESULT(vkQueueSubmit(_gs.device.compute_queue, 1, &submitInfo, fence));
-    /*
-    The command will not have finished executing until the fence is signalled.
-    So we wait here.
-    We will directly after this read our buffer from the GPU,
-    and we will not be sure that the command has finished executing unless we wait for the fence.
-    Hence, we use a fence here.
-    */
-    VK_CHECK_RESULT(vkWaitForFences(_gs.device.device, 1, &fence, VK_TRUE, 100000000000));
-
-    vkDestroyFence(_gs.device.device, fence, NULL);
-}
-
 void cleanup() {
     if (enableValidationLayers) {
         PFN_vkDestroyDebugReportCallbackEXT func = 
@@ -632,12 +617,9 @@ void cleanup() {
         func(_gs.instance, _gs.debug_report_callback, NULL);
     }
 
-    vkDestroyShaderModule(_gs.device.device, computeShaderModule, NULL);
-    vkDestroyDescriptorPool(_gs.device.device, descriptorPool, NULL);
-    vkDestroyDescriptorSetLayout(_gs.device.device, descriptorSetLayout, NULL);
-    vkDestroyPipelineLayout(_gs.device.device, pipelineLayout, NULL);
-    vkDestroyPipeline(_gs.device.device, pipeline, NULL);
-    vkDestroyCommandPool(_gs.device.device, commandPool, NULL);	
+    vkDestroyDescriptorPool(_gs.device.device, _gs.descriptorPool, NULL);
+    vkDestroyDescriptorSetLayout(_gs.device.device, _gs.descriptor_set_layout, NULL);
+    vkDestroyCommandPool(_gs.device.device, _gs.command_pool, NULL);	
     vkDestroyDevice(_gs.device.device, NULL);
     vkDestroyInstance(_gs.instance, NULL);		
 }
