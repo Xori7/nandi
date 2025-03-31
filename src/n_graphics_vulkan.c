@@ -244,7 +244,7 @@ VkDescriptorPool n_vk_create_descriptor_pool() {
 VkCommandPool n_vk_create_command_pool() {
     VkCommandPoolCreateInfo commandPoolCreateInfo = {0};
     commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    commandPoolCreateInfo.flags = 0;
+    commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     commandPoolCreateInfo.queueFamilyIndex = _gs.queueFamilyIndex;
     VkCommandPool pool = NULL;
     VK_CHECK_RESULT(vkCreateCommandPool(_gs.device.device, &commandPoolCreateInfo, NULL, &pool));
@@ -353,7 +353,14 @@ extern void n_graphics_buffer_destroy(N_GraphicsBuffer buffer) {
     vkDestroyBuffer(_gs.device.device, buffer.buffer, NULL);	
 }
 
-extern void n_graphics_buffer_mmap(N_GraphicsBuffer buffer, void *ptr) {
+extern void* n_graphics_buffer_map(N_GraphicsBuffer buffer) {
+    void* mappedMemory = NULL;
+    VK_CHECK_RESULT(vkMapMemory(_gs.device.device, buffer.buffer_memory, 0, buffer.buffer_size, 0, &mappedMemory));
+    return mappedMemory;
+}
+
+extern void n_graphics_buffer_unmap(N_GraphicsBuffer buffer) {
+    vkUnmapMemory(_gs.device.device, buffer.buffer_memory);
 }
 
 struct N_Shader {
@@ -361,10 +368,9 @@ struct N_Shader {
     VkPipeline pipeline;
     VkPipelineLayout pipeline_layout;
     VkShaderModule shader_module;
-    VkDescriptorSet descriptorSet;
-
+    VkDescriptorSet descriptor_set;
     U8 buffer_count;
-    //N_GraphicsBuffer buffers[MAX_SHADER_BUFFER_COUNT];
+    const N_GraphicsBuffer *buffers[MAX_SHADER_BUFFER_COUNT];
 };
 
 // Read file into array of bytes, and cast to uint32_t*, then return.
@@ -405,10 +411,10 @@ extern N_Shader n_graphics_shader_create(const char *shader_path) {
     VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {0};
     descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO; 
     descriptorSetAllocateInfo.descriptorPool = _gs.descriptorPool;
-    descriptorSetAllocateInfo.descriptorSetCount = shader.buffer_count;
+    descriptorSetAllocateInfo.descriptorSetCount = 1;
     descriptorSetAllocateInfo.pSetLayouts = &_gs.descriptor_set_layout;
 
-    VK_CHECK_RESULT(vkAllocateDescriptorSets(_gs.device.device, &descriptorSetAllocateInfo, &shader.descriptorSet));
+    VK_CHECK_RESULT(vkAllocateDescriptorSets(_gs.device.device, &descriptorSetAllocateInfo, &shader.descriptor_set));
 
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {0};
     pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -458,19 +464,28 @@ extern void n_graphics_shader_destroy(const N_Shader *shader) {
     vkDestroyPipeline(_gs.device.device, shader->pipeline, NULL);
 }
 
-extern void n_graphics_shader_set_buffer(const N_Shader *shader, const N_GraphicsBuffer *buffer, U32 binding_index) {
-    VkDescriptorBufferInfo descriptorBufferInfo = {0};
-    descriptorBufferInfo.buffer = buffer->buffer;
-    descriptorBufferInfo.offset = 0;
-    descriptorBufferInfo.range = buffer->buffer_size;
+extern void n_graphics_shader_set_buffer(N_Shader *shader, const N_GraphicsBuffer *buffer, U32 binding_index) {
+    if (shader->buffer_count <= binding_index) {
+        shader->buffer_count = binding_index + 1;
+    }
+    shader->buffers[binding_index] = buffer;
+
+    VkDescriptorBufferInfo descriptorBufferInfos[MAX_SHADER_BUFFER_COUNT];
+    for (U32 i = 0; i < shader->buffer_count; i++) {
+        descriptorBufferInfos[i] = (VkDescriptorBufferInfo) {
+            .buffer = buffer->buffer,
+            .offset = 0,
+            .range = buffer->buffer_size
+        };
+    }
 
     VkWriteDescriptorSet writeDescriptorSet = {0};
     writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writeDescriptorSet.dstSet = shader->descriptorSet;
+    writeDescriptorSet.dstSet = shader->descriptor_set;
     writeDescriptorSet.dstBinding = binding_index;
-    writeDescriptorSet.descriptorCount = 1;
+    writeDescriptorSet.descriptorCount = shader->buffer_count;
     writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    writeDescriptorSet.pBufferInfo = &descriptorBufferInfo;
+    writeDescriptorSet.pBufferInfo = descriptorBufferInfos;
     vkUpdateDescriptorSets(_gs.device.device, 1, &writeDescriptorSet, 0, NULL);
 }
 
@@ -509,7 +524,7 @@ extern void n_graphics_command_buffer_cmd_dispatch(const N_CommandBuffer *comman
         const N_Shader *shader, U32 work_g_x, U32 work_g_y, U32 work_g_z) {
     vkCmdBindPipeline(command_buffer->buffer, VK_PIPELINE_BIND_POINT_COMPUTE, shader->pipeline);
     vkCmdBindDescriptorSets(command_buffer->buffer, VK_PIPELINE_BIND_POINT_COMPUTE, 
-            shader->pipeline_layout, 0, 1, &shader->descriptorSet, 0, NULL);
+            shader->pipeline_layout, 0, 1, &shader->descriptor_set, 0, NULL);
     vkCmdDispatch(command_buffer->buffer, work_g_x, work_g_y, work_g_z);
 }
 
@@ -553,14 +568,29 @@ void runCommandBuffer(void);
 void saveRenderedImage(N_GraphicsBuffer buffer);
 void cleanup(void);
 
+typedef struct {
+    F32 x, y, z;
+} N_Vec3;
+
 void run(void) {
     U64 buffer_size = sizeof(Pixel) * WIDTH * HEIGHT;
 
     int i = 0;
     n_graphics_initialize();
     N_GraphicsBuffer buffer = n_graphics_buffer_create(buffer_size);
+    N_GraphicsBuffer color_value_buffer = n_graphics_buffer_create(sizeof(F32) * 60);
+    F32 *color = n_graphics_buffer_map(color_value_buffer);
+    color[0] = 1.0f;
+    color[1] = 1.0f;
+    color[2] = 1.0f;
+    color[3] = 1.0f;
+    color[4] = 0.0f;
+    color[5] = 1.0f;
+    n_graphics_buffer_unmap(color_value_buffer);
+    
     N_Shader shader = n_graphics_shader_create("./shaders/shader.comp");
     n_graphics_shader_set_buffer(&shader, &buffer, 0);
+    n_graphics_shader_set_buffer(&shader, &color_value_buffer, 1);
 
     const N_CommandBuffer *command_buffer = n_graphics_command_buffer_create();
     n_graphics_command_buffer_begin(command_buffer);
@@ -568,14 +598,25 @@ void run(void) {
             (uint32_t)ceil(WIDTH / (float)(WORKGROUP_SIZE)), 
             (uint32_t)ceil(HEIGHT / (float)(WORKGROUP_SIZE)), 
             1);
-
     n_graphics_command_buffer_end(command_buffer);
     n_graphics_command_buffer_submit(command_buffer);
+
+    n_graphics_command_buffer_reset(command_buffer);
+    n_graphics_command_buffer_begin(command_buffer);
+    n_graphics_command_buffer_cmd_dispatch(command_buffer, &shader, 
+            (uint32_t)ceil(WIDTH / (float)(WORKGROUP_SIZE)), 
+            (uint32_t)ceil(HEIGHT / (float)(WORKGROUP_SIZE)), 
+            1);
+    n_graphics_command_buffer_end(command_buffer);
+    n_graphics_command_buffer_submit(command_buffer);
+
+
     n_graphics_command_buffer_destroy(command_buffer);
 
     saveRenderedImage(buffer);
 
     n_graphics_shader_destroy(&shader);
+    n_graphics_buffer_destroy(color_value_buffer);
     n_graphics_buffer_destroy(buffer);
 
     cleanup();
@@ -618,6 +659,7 @@ void cleanup() {
     }
 
     vkDestroyDescriptorPool(_gs.device.device, _gs.descriptorPool, NULL);
+
     vkDestroyDescriptorSetLayout(_gs.device.device, _gs.descriptor_set_layout, NULL);
     vkDestroyCommandPool(_gs.device.device, _gs.command_pool, NULL);	
     vkDestroyDevice(_gs.device.device, NULL);

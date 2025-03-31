@@ -16,9 +16,9 @@ layout(std140, binding = 0) buffer buf
     Pixel imageData[];
 };
 
-layout(std140, binding = 1) buffer verts
+layout(std140, binding = 1) buffer col
 {
-    vec3 vertices[];
+    float c[];
 };
 
 void main() {
@@ -26,13 +26,13 @@ void main() {
         return;
     }
 
-    float x = float(gl_GlobalInvocationID.x) / float(WIDTH);
-    float y = float(gl_GlobalInvocationID.y) / float(HEIGHT);
+    float x = float(gl_GlobalInvocationID.x) / float(WIDTH);// + c[3];
+    float y = float(gl_GlobalInvocationID.y) / float(HEIGHT);// + c[4];
 
-    float r = 0.2;
+    float r = 0.2f;//c[5];
 
-    float d = x * x + y * y < r * r ? 1.0 : 0.0;
-    vec4 color = vec4(d, d, d, 1.0);
+    float d = x * x + y * y / (r * r);// ? 1.0f : 0.0f;
+    vec4 color = vec4(vec3(c[1], c[2], c[3]) * d, 1);
 
     // store the rendered mandelbrot set into a storage buffer:
     imageData[WIDTH * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x].value = color;
