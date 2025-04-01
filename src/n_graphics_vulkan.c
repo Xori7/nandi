@@ -319,21 +319,22 @@ uint32_t findMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags propertie
     return (uint32_t)-1;
 }
 
-extern N_GraphicsBuffer n_graphics_buffer_create(U64 size) {
+extern N_GraphicsBuffer* n_graphics_buffer_create(U64 size) {
     VkBufferCreateInfo bufferCreateInfo = {0};
     bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferCreateInfo.size = size;
     bufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
     bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    N_GraphicsBuffer graphics_buffer = {
+    N_GraphicsBuffer *graphics_buffer = malloc(sizeof(*graphics_buffer));
+    *graphics_buffer = (N_GraphicsBuffer) {
         .buffer_size = size
     };
 
-    VK_CHECK_RESULT(vkCreateBuffer(_gs.device.device, &bufferCreateInfo, NULL, &graphics_buffer.buffer));
+    VK_CHECK_RESULT(vkCreateBuffer(_gs.device.device, &bufferCreateInfo, NULL, &graphics_buffer->buffer));
 
     VkMemoryRequirements memoryRequirements;
-    vkGetBufferMemoryRequirements(_gs.device.device, graphics_buffer.buffer, &memoryRequirements);
+    vkGetBufferMemoryRequirements(_gs.device.device, graphics_buffer->buffer, &memoryRequirements);
     
     VkMemoryAllocateInfo allocateInfo = {0};
     allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -341,27 +342,28 @@ extern N_GraphicsBuffer n_graphics_buffer_create(U64 size) {
     allocateInfo.memoryTypeIndex = findMemoryType(
             memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
-    VK_CHECK_RESULT(vkAllocateMemory(_gs.device.device, &allocateInfo, NULL, &graphics_buffer.buffer_memory)); // allocate memory on device.
+    VK_CHECK_RESULT(vkAllocateMemory(_gs.device.device, &allocateInfo, NULL, &graphics_buffer->buffer_memory)); // allocate memory on device.
     
     // Now associate that allocated memory with the buffer. With that, the buffer is backed by actual memory. 
-    VK_CHECK_RESULT(vkBindBufferMemory(_gs.device.device, graphics_buffer.buffer, graphics_buffer.buffer_memory, 0));
+    VK_CHECK_RESULT(vkBindBufferMemory(_gs.device.device, graphics_buffer->buffer, graphics_buffer->buffer_memory, 0));
 
     return graphics_buffer;
 }
 
-extern void n_graphics_buffer_destroy(N_GraphicsBuffer buffer) {
-    vkFreeMemory(_gs.device.device, buffer.buffer_memory, NULL);
-    vkDestroyBuffer(_gs.device.device, buffer.buffer, NULL);	
+extern void n_graphics_buffer_destroy(const N_GraphicsBuffer *buffer) {
+    vkFreeMemory(_gs.device.device, buffer->buffer_memory, NULL);
+    vkDestroyBuffer(_gs.device.device, buffer->buffer, NULL);	
+    free((void*)buffer);
 }
 
-extern void* n_graphics_buffer_map(N_GraphicsBuffer buffer) {
+extern void* n_graphics_buffer_map(const N_GraphicsBuffer *buffer) {
     void* mappedMemory = NULL;
-    VK_CHECK_RESULT(vkMapMemory(_gs.device.device, buffer.buffer_memory, 0, buffer.buffer_size, 0, &mappedMemory));
+    VK_CHECK_RESULT(vkMapMemory(_gs.device.device, buffer->buffer_memory, 0, buffer->buffer_size, 0, &mappedMemory));
     return mappedMemory;
 }
 
-extern void n_graphics_buffer_unmap(N_GraphicsBuffer buffer) {
-    vkUnmapMemory(_gs.device.device, buffer.buffer_memory);
+extern void n_graphics_buffer_unmap(const N_GraphicsBuffer *buffer) {
+    vkUnmapMemory(_gs.device.device, buffer->buffer_memory);
 }
 
 struct N_Shader {
@@ -405,9 +407,9 @@ U32* read_file(uint32_t *length, const char* filename) {
     return (uint32_t *)str;
 }
 
-extern N_Shader n_graphics_shader_create(const char *shader_path) {
-    N_Shader shader = {0};
-    shader.buffer_count = 1;
+extern N_Shader* n_graphics_shader_create(const char *shader_path) {
+    N_Shader *shader = malloc(sizeof(*shader));
+    shader->buffer_count = 1;
 
     VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {0};
     descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO; 
@@ -415,13 +417,13 @@ extern N_Shader n_graphics_shader_create(const char *shader_path) {
     descriptorSetAllocateInfo.descriptorSetCount = 1;
     descriptorSetAllocateInfo.pSetLayouts = &_gs.descriptor_set_layout;
 
-    VK_CHECK_RESULT(vkAllocateDescriptorSets(_gs.device.device, &descriptorSetAllocateInfo, &shader.descriptor_set));
+    VK_CHECK_RESULT(vkAllocateDescriptorSets(_gs.device.device, &descriptorSetAllocateInfo, &shader->descriptor_set));
 
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {0};
     pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutCreateInfo.setLayoutCount = 1;
     pipelineLayoutCreateInfo.pSetLayouts = &_gs.descriptor_set_layout; 
-    VK_CHECK_RESULT(vkCreatePipelineLayout(_gs.device.device, &pipelineLayoutCreateInfo, NULL, &shader.pipeline_layout));
+    VK_CHECK_RESULT(vkCreatePipelineLayout(_gs.device.device, &pipelineLayoutCreateInfo, NULL, &shader->pipeline_layout));
 
     uint32_t file_length = 0;
     // the code in comp.spv was created by running the command:
@@ -439,22 +441,22 @@ extern N_Shader n_graphics_shader_create(const char *shader_path) {
     create_info.pCode = code;
     create_info.codeSize = file_length;
     
-    VK_CHECK_RESULT(vkCreateShaderModule(_gs.device.device, &create_info, NULL, &shader.shader_module));
+    VK_CHECK_RESULT(vkCreateShaderModule(_gs.device.device, &create_info, NULL, &shader->shader_module));
     free(code);
 
     VkPipelineShaderStageCreateInfo shaderStageCreateInfo = {0};
     shaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     shaderStageCreateInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-    shaderStageCreateInfo.module = shader.shader_module;
+    shaderStageCreateInfo.module = shader->shader_module;
     shaderStageCreateInfo.pName = "main";
 
 
     VkComputePipelineCreateInfo pipelineCreateInfo = {0};
     pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
     pipelineCreateInfo.stage = shaderStageCreateInfo;
-    pipelineCreateInfo.layout = shader.pipeline_layout;
+    pipelineCreateInfo.layout = shader->pipeline_layout;
 
-    VK_CHECK_RESULT(vkCreateComputePipelines(_gs.device.device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, NULL, &shader.pipeline));
+    VK_CHECK_RESULT(vkCreateComputePipelines(_gs.device.device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, NULL, &shader->pipeline));
 
     return shader;
 }
@@ -566,7 +568,7 @@ extern void n_graphics_command_buffer_reset(const N_CommandBuffer *command_buffe
 
 void createCommandBuffer(const N_Shader *shader);
 void runCommandBuffer(void);
-void saveRenderedImage(N_GraphicsBuffer buffer);
+void saveRenderedImage(const N_GraphicsBuffer *buffer);
 void cleanup(void);
 
 typedef struct {
@@ -593,14 +595,14 @@ void run(void) {
 
     const I32 CIRCLES_LEN = 20;
 
-    N_GraphicsBuffer buffer = n_graphics_buffer_create(buffer_size);
+    N_GraphicsBuffer *buffer = n_graphics_buffer_create(buffer_size);
 
-    N_GraphicsBuffer length_buffer = n_graphics_buffer_create(sizeof(I32));
+    N_GraphicsBuffer *length_buffer = n_graphics_buffer_create(sizeof(I32));
     I32 *len = n_graphics_buffer_map(length_buffer);
     *len = CIRCLES_LEN;
     n_graphics_buffer_unmap(length_buffer);
 
-    N_GraphicsBuffer circle_buffer = n_graphics_buffer_create(sizeof(N_Circle) * CIRCLES_LEN);
+    N_GraphicsBuffer *circle_buffer = n_graphics_buffer_create(sizeof(N_Circle) * CIRCLES_LEN);
     N_Circle *c = n_graphics_buffer_map(circle_buffer);
     for (U32 i = 0; i < CIRCLES_LEN; i++) {
         c[i].color.x = sinf(i) * 1.0f;
@@ -612,15 +614,15 @@ void run(void) {
     n_graphics_buffer_unmap(circle_buffer);
 
 
-    N_Shader shader = n_graphics_shader_create("./shaders/shader.comp");
-    n_graphics_shader_set_buffer(&shader, &buffer, 0);
-    n_graphics_shader_set_buffer(&shader, &circle_buffer, 1);
-    n_graphics_shader_set_buffer(&shader, &length_buffer, 2);
+    N_Shader *shader = n_graphics_shader_create("./shaders/shader.comp");
+    n_graphics_shader_set_buffer(shader, buffer, 0);
+    n_graphics_shader_set_buffer(shader, circle_buffer, 2);
+    n_graphics_shader_set_buffer(shader, length_buffer, 3);
 
     const N_CommandBuffer *command_buffer = n_graphics_command_buffer_create();
     n_graphics_command_buffer_reset(command_buffer);
     n_graphics_command_buffer_begin(command_buffer);
-    n_graphics_command_buffer_cmd_dispatch(command_buffer, &shader, 
+    n_graphics_command_buffer_cmd_dispatch(command_buffer, shader, 
             (uint32_t)ceil(WIDTH / (float)(WORKGROUP_SIZE)), 
             (uint32_t)ceil(HEIGHT / (float)(WORKGROUP_SIZE)), 
             1);
@@ -631,7 +633,7 @@ void run(void) {
 
     saveRenderedImage(buffer);
 
-    n_graphics_shader_destroy(&shader);
+    n_graphics_shader_destroy(shader);
     n_graphics_buffer_destroy(circle_buffer);
     n_graphics_buffer_destroy(length_buffer);
     n_graphics_buffer_destroy(buffer);
@@ -639,11 +641,11 @@ void run(void) {
     cleanup();
 }
 
-void saveRenderedImage(N_GraphicsBuffer buffer) {
+void saveRenderedImage(const N_GraphicsBuffer *buffer) {
     n_debug_info("Saving the image...");
     void* mappedMemory = NULL;
     // Map the buffer memory, so that we can read from it on the CPU.
-    vkMapMemory(_gs.device.device, buffer.buffer_memory, 0, buffer.buffer_size, 0, &mappedMemory);
+    vkMapMemory(_gs.device.device, buffer->buffer_memory, 0, buffer->buffer_size, 0, &mappedMemory);
     Pixel* pmappedMemory = (Pixel *)mappedMemory;
 
     // Get the color data from the buffer, and cast it to bytes.
@@ -656,7 +658,7 @@ void saveRenderedImage(N_GraphicsBuffer buffer) {
         image[i*4 + 3] = ((unsigned char)(255.0f * (pmappedMemory[i].a)));
     }
     // Done reading, so unmap.
-    vkUnmapMemory(_gs.device.device, buffer.buffer_memory);
+    vkUnmapMemory(_gs.device.device, buffer->buffer_memory);
 
     // Now we save the acquired color data to a .png.
     unsigned error = lodepng_encode32_file("./mandelbrot.png", image, WIDTH, HEIGHT);

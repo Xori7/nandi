@@ -1,5 +1,4 @@
 #version 450
-#extension GL_ARB_separate_shader_objects : enable
 
 #define WIDTH 1000
 #define HEIGHT 1000
@@ -23,12 +22,12 @@ layout(std430, binding = 0) buffer buf
     Pixel imageData[];
 };
 
-layout(std430, binding = 1) buffer col
+layout(std430, binding = 2) buffer col
 {
     Circle a[];
 };
 
-layout(std430, binding = 2) buffer len
+layout(std430, binding = 3) buffer len
 {
     int length;
 };
