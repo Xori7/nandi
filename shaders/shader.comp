@@ -11,14 +11,26 @@ struct Pixel{
     vec4 value;
 };
 
-layout(std140, binding = 0) buffer buf
+struct Circle {
+    vec3 color;
+    float padding[1];
+    vec2 position;
+    float padding2[2];
+};
+
+layout(std430, binding = 0) buffer buf
 {
     Pixel imageData[];
 };
 
-layout(std140, binding = 1) buffer col
+layout(std430, binding = 1) buffer col
 {
-    float c[];
+    Circle a[];
+};
+
+layout(std430, binding = 2) buffer len
+{
+    int length;
 };
 
 void main() {
@@ -26,16 +38,20 @@ void main() {
         return;
     }
 
-    float x = float(gl_GlobalInvocationID.x) / float(WIDTH);// + c[3];
-    float y = float(gl_GlobalInvocationID.y) / float(HEIGHT);// + c[4];
+    vec4 color = vec4(0.0, 0.0, 0.0, 1);
 
-    float r = 0.2f;//c[5];
+    for (int i = 0; i < length; i++) {
+        Circle c = a[i];
 
-    float d = x * x + y * y / (r * r);// ? 1.0f : 0.0f;
-    vec4 color = vec4(vec3(c[1], c[2], c[3]) * d, 1);
+        float x = 10 * float(gl_GlobalInvocationID.x) / float(WIDTH) - c.position.x;
+        float y = 10 * float(gl_GlobalInvocationID.y) / float(HEIGHT) - c.position.y;
 
-    // store the rendered mandelbrot set into a storage buffer:
-    imageData[WIDTH * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x].value = color;
+        float dist = 1 * (x * x + y * y);
+        float d = 0.1 / sqrt(dist);
+        color += vec4(c.color * d, 0);
+    }
+
+    imageData[WIDTH * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x].value = clamp(color, 0, 1);
 }
 
 // vim: set filetype=glsl :

@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include "lodepng.h"
 
 const int WIDTH = 1000; // Size of rendered mandelbrot set.
@@ -218,7 +219,7 @@ VkDescriptorSetLayout n_vk_create_descriptor_set_layout() {
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {0};
     descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     descriptorSetLayoutCreateInfo.bindingCount = MAX_SHADER_BUFFER_COUNT;
-    descriptorSetLayoutCreateInfo.pBindings = (const VkDescriptorSetLayoutBinding*)&descriptorSetLayoutBinding; 
+    descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBinding; 
 
     VkDescriptorSetLayout layout = NULL;
     VK_CHECK_RESULT(vkCreateDescriptorSetLayout(_gs.device.device, &descriptorSetLayoutCreateInfo, NULL, &layout));
@@ -569,38 +570,54 @@ void saveRenderedImage(N_GraphicsBuffer buffer);
 void cleanup(void);
 
 typedef struct {
+    F32 x, y;
+} N_Vec2;
+typedef struct {
     F32 x, y, z;
 } N_Vec3;
+
+typedef struct {
+    N_Vec3 color;
+    float pad1[1];
+    N_Vec2 position;
+    float pad2[2];
+} N_Circle;
+
+#include <math.h>
 
 void run(void) {
     U64 buffer_size = sizeof(Pixel) * WIDTH * HEIGHT;
 
     int i = 0;
     n_graphics_initialize();
+
+    const I32 CIRCLES_LEN = 20;
+
     N_GraphicsBuffer buffer = n_graphics_buffer_create(buffer_size);
-    N_GraphicsBuffer color_value_buffer = n_graphics_buffer_create(sizeof(F32) * 60);
-    F32 *color = n_graphics_buffer_map(color_value_buffer);
-    color[0] = 1.0f;
-    color[1] = 1.0f;
-    color[2] = 1.0f;
-    color[3] = 1.0f;
-    color[4] = 0.0f;
-    color[5] = 1.0f;
-    n_graphics_buffer_unmap(color_value_buffer);
-    
+
+    N_GraphicsBuffer length_buffer = n_graphics_buffer_create(sizeof(I32));
+    I32 *len = n_graphics_buffer_map(length_buffer);
+    *len = CIRCLES_LEN;
+    n_graphics_buffer_unmap(length_buffer);
+
+    N_GraphicsBuffer circle_buffer = n_graphics_buffer_create(sizeof(N_Circle) * CIRCLES_LEN);
+    N_Circle *c = n_graphics_buffer_map(circle_buffer);
+    for (U32 i = 0; i < CIRCLES_LEN; i++) {
+        c[i].color.x = sinf(i) * 1.0f;
+        c[i].color.y = sinf(i * 2.5f + 2.3f) * 1.0f;
+        c[i].color.z = sinf(i * 1.1 + 3.14) * 1.0f;
+        c[i].position.x = 5 + (8 * cosf(i)) / (F32)CIRCLES_LEN * 10;
+        c[i].position.y = 5 + (8 * sinf(i)) / (F32)CIRCLES_LEN * 10;
+    }
+    n_graphics_buffer_unmap(circle_buffer);
+
+
     N_Shader shader = n_graphics_shader_create("./shaders/shader.comp");
     n_graphics_shader_set_buffer(&shader, &buffer, 0);
-    n_graphics_shader_set_buffer(&shader, &color_value_buffer, 1);
+    n_graphics_shader_set_buffer(&shader, &circle_buffer, 1);
+    n_graphics_shader_set_buffer(&shader, &length_buffer, 2);
 
     const N_CommandBuffer *command_buffer = n_graphics_command_buffer_create();
-    n_graphics_command_buffer_begin(command_buffer);
-    n_graphics_command_buffer_cmd_dispatch(command_buffer, &shader, 
-            (uint32_t)ceil(WIDTH / (float)(WORKGROUP_SIZE)), 
-            (uint32_t)ceil(HEIGHT / (float)(WORKGROUP_SIZE)), 
-            1);
-    n_graphics_command_buffer_end(command_buffer);
-    n_graphics_command_buffer_submit(command_buffer);
-
     n_graphics_command_buffer_reset(command_buffer);
     n_graphics_command_buffer_begin(command_buffer);
     n_graphics_command_buffer_cmd_dispatch(command_buffer, &shader, 
@@ -610,13 +627,13 @@ void run(void) {
     n_graphics_command_buffer_end(command_buffer);
     n_graphics_command_buffer_submit(command_buffer);
 
-
     n_graphics_command_buffer_destroy(command_buffer);
 
     saveRenderedImage(buffer);
 
     n_graphics_shader_destroy(&shader);
-    n_graphics_buffer_destroy(color_value_buffer);
+    n_graphics_buffer_destroy(circle_buffer);
+    n_graphics_buffer_destroy(length_buffer);
     n_graphics_buffer_destroy(buffer);
 
     cleanup();
