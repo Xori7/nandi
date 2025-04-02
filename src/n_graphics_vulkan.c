@@ -1,20 +1,19 @@
 #include "nandi/n_core.h"
 #include "nandi/n_graphics.h"
-#include "vulkan/vulkan.h"
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+#define VK_USE_PLATFORM_WIN32_KHR
+#include "vulkan/vulkan.h"
+#include <windows.h>
 #include "lodepng.h"
 
-const int WIDTH = 1000; // Size of rendered mandelbrot set.
-const int HEIGHT = 1000; // Size of renderered mandelbrot set.
-const int WORKGROUP_SIZE = 32; // Workgroup size in compute shader.
-
 #ifdef NDEBUG
-const bool enableValidationLayers = FALSE;
+const Bool enableValidationLayers = FALSE;
 #else
 const Bool enableValidationLayers = TRUE;
 #endif
@@ -31,9 +30,6 @@ const Bool enableValidationLayers = TRUE;
 }
 
 // The pixels of the rendered mandelbrot set are in this format:
-typedef struct {
-    float r, g, b, a;
-} Pixel;
 
 
 typedef struct {
@@ -51,6 +47,7 @@ typedef struct {
 
 
 typedef struct {
+    Bool initialized;
     N_VkLayersInfo layers_info;
     VkDebugReportCallbackEXT debug_report_callback;
     VkInstance instance;
@@ -59,9 +56,13 @@ typedef struct {
     VkDescriptorPool descriptorPool;
     VkCommandPool command_pool;
     U32 queueFamilyIndex;
+    VkSurfaceKHR surface;
+    VkSwapchainKHR swapchain;
+    U32 swapchain_image_count;
+    VkImage swapchain_images[32];
 } N_GraphicsState;
 
-static N_GraphicsState _gs;
+static N_GraphicsState _gs = {0};
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL n_vk_debug_report_callback(
     VkDebugReportFlagsEXT                       flags,
@@ -123,7 +124,11 @@ static N_VkLayersInfo n_vk_enable_validation_layers() {
     if (!foundExtension) {
         n_debug_warn("Extension VK_EXT_DEBUG_REPORT_EXTENSION_NAME not supported");
     }
+
     layers_info.enabled_extensions[layers_info.enabled_extension_count++] = VK_EXT_DEBUG_REPORT_EXTENSION_NAME;
+    layers_info.enabled_extensions[layers_info.enabled_extension_count++] = VK_KHR_SURFACE_EXTENSION_NAME;
+    layers_info.enabled_extensions[layers_info.enabled_extension_count++] = VK_KHR_WIN32_SURFACE_EXTENSION_NAME;
+
     return layers_info;
 }
 
@@ -194,6 +199,9 @@ static N_VkGraphicsDevice n_vk_create_device(VkPhysicalDevice physical_device) {
     deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo; 
     deviceCreateInfo.queueCreateInfoCount = 1;
     deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
+    deviceCreateInfo.enabledExtensionCount = 1;
+    const char *extensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+    deviceCreateInfo.ppEnabledExtensionNames = extensions;
 
     VkDevice device;
     VkQueue compute_queue;
@@ -252,7 +260,58 @@ VkCommandPool n_vk_create_command_pool() {
     return pool;
 }
 
-extern void n_graphics_initialize(void) {
+extern void n_graphics_recreate_swap_chain(const N_Window *window) {
+    if (_gs.initialized == FALSE) {
+        return;
+    }
+    if (_gs.swapchain != NULL) {
+        vkDestroySwapchainKHR(_gs.device.device, _gs.swapchain, NULL);
+        for (U32 i = 0; i < _gs.swapchain_image_count; i++) {
+            vkDestroyImage(_gs.device.device, _gs.swapchain_images[i], NULL);
+        }
+    }
+
+    VkSurfaceCapabilitiesKHR cap = {0};
+    VK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(_gs.device.physical_device, _gs.surface, &cap));
+    U32 min_image_count = cap.minImageCount;
+
+    if (!(cap.supportedUsageFlags & VK_IMAGE_USAGE_STORAGE_BIT)) {
+        n_debug_err("STORAGE_BIT not supported!\n");
+    }
+    if (!(cap.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT)) {
+        n_debug_err("TRANSFER_SRC_BIT not supported!\n");
+    }
+
+    VkSwapchainCreateInfoKHR swapchainInfo = {
+        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+        .pNext = NULL,
+        .flags = 0,
+        .surface = _gs.surface,
+        .minImageCount = min_image_count,
+        .imageFormat = VK_FORMAT_B8G8R8A8_UNORM,
+        .imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+        .imageExtent = { 
+            .width = n_graphics_window_get_size_x(window),
+            .height = n_graphics_window_get_size_y(window)
+        },
+        .imageArrayLayers = 1,
+        .imageUsage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = 0,
+        .pQueueFamilyIndices = NULL,
+        .preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+        .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+        .presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR,
+        .clipped = VK_TRUE,
+        .oldSwapchain = VK_NULL_HANDLE
+    };
+    VK_CHECK_RESULT(vkCreateSwapchainKHR(_gs.device.device, &swapchainInfo, NULL, &_gs.swapchain));
+
+    _gs.swapchain_image_count = 3;
+    VK_CHECK_RESULT(vkGetSwapchainImagesKHR(_gs.device.device, _gs.swapchain, &_gs.swapchain_image_count, _gs.swapchain_images));
+}
+
+extern void n_graphics_initialize(const N_Window *window) {
     _gs = (N_GraphicsState){ 0 };
     VkApplicationInfo applicationInfo = {0};
     applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -298,6 +357,12 @@ extern void n_graphics_initialize(void) {
     _gs.descriptor_set_layout = n_vk_create_descriptor_set_layout();
     _gs.descriptorPool = n_vk_create_descriptor_pool();
     _gs.command_pool = n_vk_create_command_pool();
+ 
+    VkWin32SurfaceCreateInfoKHR surfaceInfo = { VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR, NULL, 0, GetModuleHandle(NULL), *(HWND*)window };
+    vkCreateWin32SurfaceKHR(_gs.instance, &surfaceInfo, NULL, &_gs.surface);
+    _gs.initialized = TRUE;
+
+    n_graphics_recreate_swap_chain(window);
 }
 
 struct N_GraphicsBuffer {
@@ -323,7 +388,7 @@ extern N_GraphicsBuffer* n_graphics_buffer_create(U64 size) {
     VkBufferCreateInfo bufferCreateInfo = {0};
     bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferCreateInfo.size = size;
-    bufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    bufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     N_GraphicsBuffer *graphics_buffer = malloc(sizeof(*graphics_buffer));
@@ -531,6 +596,76 @@ extern void n_graphics_command_buffer_cmd_dispatch(const N_CommandBuffer *comman
     vkCmdDispatch(command_buffer->buffer, work_g_x, work_g_y, work_g_z);
 }
 
+extern void n_graphics_command_buffer_present(const N_CommandBuffer *command_buffer, const N_GraphicsBuffer *frame_buffer) {
+    uint32_t imageIndex;
+    VkSemaphore acquireSemaphore;
+    VkSemaphoreCreateInfo semaphoreInfo = { .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
+    VK_CHECK_RESULT(vkCreateSemaphore(_gs.device.device, &semaphoreInfo, NULL, &acquireSemaphore));
+
+    VkResult res = vkAcquireNextImageKHR(_gs.device.device, _gs.swapchain, UINT64_MAX, acquireSemaphore, VK_NULL_HANDLE, &imageIndex);
+    VK_CHECK_RESULT(res);
+
+    VkImage swapchainImage = _gs.swapchain_images[imageIndex];
+
+    VkCommandBufferBeginInfo beginInfo = { .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT };
+    VK_CHECK_RESULT(vkBeginCommandBuffer(command_buffer->buffer, &beginInfo));
+
+    // Transition swapchain image to TRANSFER_DST_OPTIMAL
+    VkImageMemoryBarrier barrier = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .srcAccessMask = 0,
+        .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = swapchainImage,
+        .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 }
+    };
+    vkCmdPipelineBarrier(command_buffer->buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 1, &barrier);
+
+    // Copy frameBuffer to swapchainImage
+    VkBufferImageCopy region = {
+        .bufferOffset = 0,
+        .bufferRowLength = 1000,
+        .bufferImageHeight = 1000,
+        .imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+        .imageOffset = { 0, 0, 0 },
+        .imageExtent = { 1000, 1000, 1 }
+    };
+    vkCmdCopyBufferToImage(command_buffer->buffer, frame_buffer->buffer, swapchainImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+    // Transition to PRESENT_SRC_KHR
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    vkCmdPipelineBarrier(command_buffer->buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, NULL, 0, NULL, 1, &barrier);
+
+    VK_CHECK_RESULT(vkEndCommandBuffer(command_buffer->buffer));
+
+    VkSubmitInfo submitInfo = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &acquireSemaphore,
+        .pWaitDstStageMask = &(VkPipelineStageFlags){VK_PIPELINE_STAGE_TRANSFER_BIT},
+        .commandBufferCount = 1,
+        .pCommandBuffers = &command_buffer->buffer
+    };
+    VK_CHECK_RESULT(vkQueueSubmit(_gs.device.compute_queue, 1, &submitInfo, VK_NULL_HANDLE));
+
+    VkPresentInfoKHR presentInfo = {
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .swapchainCount = 1,
+        .pSwapchains = &_gs.swapchain,
+        .pImageIndices = &imageIndex
+    };
+    VK_CHECK_RESULT(vkQueuePresentKHR(_gs.device.compute_queue, &presentInfo));
+
+    vkQueueWaitIdle(_gs.device.compute_queue);
+    vkDestroySemaphore(_gs.device.device, acquireSemaphore, NULL);
+}
+
 extern void n_graphics_command_buffer_submit(const N_CommandBuffer *command_buffer) {
     VkSubmitInfo submitInfo = {0};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -538,8 +673,8 @@ extern void n_graphics_command_buffer_submit(const N_CommandBuffer *command_buff
     submitInfo.pCommandBuffers = &command_buffer->buffer; // the command buffer to submit.
 
     /*
-      We create a fence.
-    */
+       We create a fence.
+       */
     VkFence fence;
     VkFenceCreateInfo fenceCreateInfo = {0};
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
@@ -547,16 +682,16 @@ extern void n_graphics_command_buffer_submit(const N_CommandBuffer *command_buff
     VK_CHECK_RESULT(vkCreateFence(_gs.device.device, &fenceCreateInfo, NULL, &fence));
 
     /*
-    We submit the command buffer on the queue, at the same time giving a fence.
-    */
+       We submit the command buffer on the queue, at the same time giving a fence.
+       */
     VK_CHECK_RESULT(vkQueueSubmit(_gs.device.compute_queue, 1, &submitInfo, fence));
     /*
-    The command will not have finished executing until the fence is signalled.
-    So we wait here.
-    We will directly after this read our buffer from the GPU,
-    and we will not be sure that the command has finished executing unless we wait for the fence.
-    Hence, we use a fence here.
-    */
+       The command will not have finished executing until the fence is signalled.
+       So we wait here.
+       We will directly after this read our buffer from the GPU,
+       and we will not be sure that the command has finished executing unless we wait for the fence.
+       Hence, we use a fence here.
+       */
     VK_CHECK_RESULT(vkWaitForFences(_gs.device.device, 1, &fence, VK_TRUE, 100000000000));
 
     vkDestroyFence(_gs.device.device, fence, NULL);
@@ -566,108 +701,7 @@ extern void n_graphics_command_buffer_reset(const N_CommandBuffer *command_buffe
     VK_CHECK_RESULT(vkResetCommandBuffer(command_buffer->buffer, 0));
 }
 
-void createCommandBuffer(const N_Shader *shader);
-void runCommandBuffer(void);
-void saveRenderedImage(const N_GraphicsBuffer *buffer);
-void cleanup(void);
-
-typedef struct {
-    F32 x, y;
-} N_Vec2;
-typedef struct {
-    F32 x, y, z;
-} N_Vec3;
-
-typedef struct {
-    N_Vec3 color;
-    float pad1[1];
-    N_Vec2 position;
-    float pad2[2];
-} N_Circle;
-
-#include <math.h>
-
-void run(void) {
-    U64 buffer_size = sizeof(Pixel) * WIDTH * HEIGHT;
-
-    int i = 0;
-    n_graphics_initialize();
-
-    const I32 CIRCLES_LEN = 20;
-
-    N_GraphicsBuffer *buffer = n_graphics_buffer_create(buffer_size);
-
-    N_GraphicsBuffer *length_buffer = n_graphics_buffer_create(sizeof(I32));
-    I32 *len = n_graphics_buffer_map(length_buffer);
-    *len = CIRCLES_LEN;
-    n_graphics_buffer_unmap(length_buffer);
-
-    N_GraphicsBuffer *circle_buffer = n_graphics_buffer_create(sizeof(N_Circle) * CIRCLES_LEN);
-    N_Circle *c = n_graphics_buffer_map(circle_buffer);
-    for (U32 i = 0; i < CIRCLES_LEN; i++) {
-        c[i].color.x = sinf(i) * 1.0f;
-        c[i].color.y = sinf(i * 2.5f + 2.3f) * 1.0f;
-        c[i].color.z = sinf(i * 1.1 + 3.14) * 1.0f;
-        c[i].position.x = 5 + (8 * cosf(i)) / (F32)CIRCLES_LEN * 10;
-        c[i].position.y = 5 + (8 * sinf(i)) / (F32)CIRCLES_LEN * 10;
-    }
-    n_graphics_buffer_unmap(circle_buffer);
-
-
-    N_Shader *shader = n_graphics_shader_create("./shaders/shader.comp");
-    n_graphics_shader_set_buffer(shader, buffer, 0);
-    n_graphics_shader_set_buffer(shader, circle_buffer, 2);
-    n_graphics_shader_set_buffer(shader, length_buffer, 3);
-
-    const N_CommandBuffer *command_buffer = n_graphics_command_buffer_create();
-    n_graphics_command_buffer_reset(command_buffer);
-    n_graphics_command_buffer_begin(command_buffer);
-    n_graphics_command_buffer_cmd_dispatch(command_buffer, shader, 
-            (uint32_t)ceil(WIDTH / (float)(WORKGROUP_SIZE)), 
-            (uint32_t)ceil(HEIGHT / (float)(WORKGROUP_SIZE)), 
-            1);
-    n_graphics_command_buffer_end(command_buffer);
-    n_graphics_command_buffer_submit(command_buffer);
-
-    n_graphics_command_buffer_destroy(command_buffer);
-
-    saveRenderedImage(buffer);
-
-    n_graphics_shader_destroy(shader);
-    n_graphics_buffer_destroy(circle_buffer);
-    n_graphics_buffer_destroy(length_buffer);
-    n_graphics_buffer_destroy(buffer);
-
-    cleanup();
-}
-
-void saveRenderedImage(const N_GraphicsBuffer *buffer) {
-    n_debug_info("Saving the image...");
-    void* mappedMemory = NULL;
-    // Map the buffer memory, so that we can read from it on the CPU.
-    vkMapMemory(_gs.device.device, buffer->buffer_memory, 0, buffer->buffer_size, 0, &mappedMemory);
-    Pixel* pmappedMemory = (Pixel *)mappedMemory;
-
-    // Get the color data from the buffer, and cast it to bytes.
-    // We save the data to a vector.
-    unsigned char *image = malloc(WIDTH * HEIGHT * 4);
-    for (int i = 0; i < WIDTH*HEIGHT; i += 1) {
-        image[i*4 + 0] = ((unsigned char)(255.0f * (pmappedMemory[i].r)));
-        image[i*4 + 1] = ((unsigned char)(255.0f * (pmappedMemory[i].g)));
-        image[i*4 + 2] = ((unsigned char)(255.0f * (pmappedMemory[i].b)));
-        image[i*4 + 3] = ((unsigned char)(255.0f * (pmappedMemory[i].a)));
-    }
-    // Done reading, so unmap.
-    vkUnmapMemory(_gs.device.device, buffer->buffer_memory);
-
-    // Now we save the acquired color data to a .png.
-    unsigned error = lodepng_encode32_file("./mandelbrot.png", image, WIDTH, HEIGHT);
-    if (error) printf("encoder error %d: %s", error, lodepng_error_text(error));
-
-    free(image);
-}
-
-void cleanup() {
+extern void n_graphics_deinitialize(void) {
     if (enableValidationLayers) {
         PFN_vkDestroyDebugReportCallbackEXT func = 
             (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(_gs.instance, "vkDestroyDebugReportCallbackEXT");
@@ -677,6 +711,9 @@ void cleanup() {
         func(_gs.instance, _gs.debug_report_callback, NULL);
     }
 
+    vkDestroySwapchainKHR(_gs.device.device, _gs.swapchain, NULL);
+    vkDestroySurfaceKHR(_gs.instance, _gs.surface, NULL);
+
     vkDestroyDescriptorPool(_gs.device.device, _gs.descriptorPool, NULL);
 
     vkDestroyDescriptorSetLayout(_gs.device.device, _gs.descriptor_set_layout, NULL);
@@ -685,7 +722,3 @@ void cleanup() {
     vkDestroyInstance(_gs.instance, NULL);		
 }
 
-extern int test_vulkan(void) {
-    run();
-    return 0;
-}

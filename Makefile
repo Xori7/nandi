@@ -17,7 +17,7 @@ CC = gcc
 C_FLAGS = -g #-Wall -Wconversion -Wpedantic -Werror -std=c11
 
 ifeq ($(OS),Windows_NT)
-	LIBS = -L$(VULKAN_SDK)/Lib -lvulkan-1
+	LIBS = -L$(VULKAN_SDK)/Lib -lvulkan-1 -lcomctl32
 else ifeq ($(OS),Linux)
 	LIBS = -L$(VULKAN_SDK)/Lib -lvulkan
 endif

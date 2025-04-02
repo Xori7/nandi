@@ -1,11 +1,17 @@
 #include "nandi/n_core.h"
 
-typedef void* N_Window;
+typedef struct N_Window N_Window;
+typedef void (*n_graphics_window_size_changed_func)(const N_Window *window);
 
-extern N_Error n_window_create(N_Window *out_window);
-extern void n_window_close(N_Window window);
+extern N_Window* n_graphics_window_create(const char *title, n_graphics_window_size_changed_func on_size_changed_func);
+extern void n_graphics_window_destroy(const N_Window *window);
+extern void n_graphics_window_set_client_size(const N_Window *window, U32 size_x, U32 size_y);
+extern U32 n_graphics_window_get_size_x(const N_Window *window);
+extern U32 n_graphics_window_get_size_y(const N_Window *window);
 
-extern void n_graphics_initialize(void);
+extern void n_graphics_initialize(const N_Window *window);
+extern void n_graphics_deinitialize(void);
+extern void n_graphics_recreate_swap_chain(const N_Window *window);
 
 typedef struct N_GraphicsBuffer N_GraphicsBuffer;
 
@@ -30,8 +36,11 @@ extern void n_graphics_command_buffer_destroy(const N_CommandBuffer *command_buf
 extern void n_graphics_command_buffer_begin(const N_CommandBuffer *command_buffer);
 extern void n_graphics_command_buffer_end(const N_CommandBuffer *command_buffer);
 extern void n_graphics_command_buffer_cmd_dispatch(const N_CommandBuffer *command_buffer, const N_Shader *shader, U32 work_g_x, U32 work_g_y, U32 work_g_z);
+extern void n_graphics_command_buffer_present(const N_CommandBuffer *command_buffer, const N_GraphicsBuffer *frame_buffer);
 extern void n_graphics_command_buffer_submit(const N_CommandBuffer *command_buffer);
 extern void n_graphics_command_buffer_reset(const N_CommandBuffer *command_buffer);
 
-extern int test_vulkan(void);
+typedef struct {
+    char a, r, g, b;
+} Pixel;
 
