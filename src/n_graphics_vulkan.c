@@ -603,8 +603,7 @@ extern void n_graphics_command_buffer_present(const N_CommandBuffer *command_buf
     VkSemaphoreCreateInfo semaphoreInfo = { .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
     VK_CHECK_RESULT(vkCreateSemaphore(_gs.device.device, &semaphoreInfo, NULL, &acquireSemaphore));
 
-    VkResult res = vkAcquireNextImageKHR(_gs.device.device, _gs.swapchain, UINT64_MAX, acquireSemaphore, VK_NULL_HANDLE, &imageIndex);
-    VK_CHECK_RESULT(res);
+    VK_CHECK_RESULT(vkAcquireNextImageKHR(_gs.device.device, _gs.swapchain, UINT64_MAX, acquireSemaphore, VK_NULL_HANDLE, &imageIndex));
 
     VkImage swapchainImage = _gs.swapchain_images[imageIndex];
 
