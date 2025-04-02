@@ -20,8 +20,8 @@ typedef struct {
 
 #include <math.h>
 
-const int WIDTH = 1000; // Size of rendered mandelbrot set.
-const int HEIGHT = 1000; // Size of renderered mandelbrot set.
+const int WIDTH = 1920; // Size of rendered mandelbrot set.
+const int HEIGHT = 1080; // Size of renderered mandelbrot set.
 const int WORKGROUP_SIZE = 32; // Workgroup size in compute shader.
 
 void saveRenderedImage(const N_GraphicsBuffer *buffer) {
@@ -50,12 +50,12 @@ void on_window_size_changed(const N_Window *window) {
 void run(void) {
 
     N_Window *window = n_graphics_window_create("alter kkard2", &on_window_size_changed);
-    n_graphics_window_set_client_size(window, 1000, 1000);
+    n_graphics_window_set_client_size(window, WIDTH, HEIGHT);
 
     n_graphics_initialize(window);
 
     U64 buffer_size = sizeof(Pixel) * WIDTH * HEIGHT;
-    const I32 CIRCLES_LEN = 40;
+    const I32 CIRCLES_LEN = 2000;
 
     N_GraphicsBuffer *buffer = n_graphics_buffer_create(buffer_size);
     N_GraphicsBuffer *length_buffer = n_graphics_buffer_create(sizeof(I32));
@@ -72,6 +72,7 @@ void run(void) {
     clock_t start = clock();
     clock_t end = clock();
     double time = ((double)(end - start) * 1000.0) / CLOCKS_PER_SEC;
+    n_debug_info("TIME: %.2f", time);
     U32 frames = 0;
     // Calculate time in milliseconds
 

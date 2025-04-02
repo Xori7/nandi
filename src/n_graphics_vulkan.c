@@ -60,6 +60,8 @@ typedef struct {
     VkSwapchainKHR swapchain;
     U32 swapchain_image_count;
     VkImage swapchain_images[32];
+    U32 screen_width;
+    U32 screen_height;
 } N_GraphicsState;
 
 static N_GraphicsState _gs = {0};
@@ -266,9 +268,6 @@ extern void n_graphics_recreate_swap_chain(const N_Window *window) {
     }
     if (_gs.swapchain != NULL) {
         vkDestroySwapchainKHR(_gs.device.device, _gs.swapchain, NULL);
-        for (U32 i = 0; i < _gs.swapchain_image_count; i++) {
-            vkDestroyImage(_gs.device.device, _gs.swapchain_images[i], NULL);
-        }
     }
 
     VkSurfaceCapabilitiesKHR cap = {0};
@@ -307,6 +306,8 @@ extern void n_graphics_recreate_swap_chain(const N_Window *window) {
     };
     VK_CHECK_RESULT(vkCreateSwapchainKHR(_gs.device.device, &swapchainInfo, NULL, &_gs.swapchain));
 
+    _gs.screen_width = n_graphics_window_get_size_x(window);
+    _gs.screen_height = n_graphics_window_get_size_y(window);
     _gs.swapchain_image_count = 3;
     VK_CHECK_RESULT(vkGetSwapchainImagesKHR(_gs.device.device, _gs.swapchain, &_gs.swapchain_image_count, _gs.swapchain_images));
 }
@@ -627,11 +628,11 @@ extern void n_graphics_command_buffer_present(const N_CommandBuffer *command_buf
     // Copy frameBuffer to swapchainImage
     VkBufferImageCopy region = {
         .bufferOffset = 0,
-        .bufferRowLength = 1000,
-        .bufferImageHeight = 1000,
+        .bufferRowLength = _gs.screen_width,
+        .bufferImageHeight = _gs.screen_height,
         .imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
         .imageOffset = { 0, 0, 0 },
-        .imageExtent = { 1000, 1000, 1 }
+        .imageExtent = { _gs.screen_width, _gs.screen_height, 1 }
     };
     vkCmdCopyBufferToImage(command_buffer->buffer, frame_buffer->buffer, swapchainImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
@@ -692,7 +693,12 @@ extern void n_graphics_command_buffer_submit(const N_CommandBuffer *command_buff
        and we will not be sure that the command has finished executing unless we wait for the fence.
        Hence, we use a fence here.
        */
+
+    clock_t start = clock();
     VK_CHECK_RESULT(vkWaitForFences(_gs.device.device, 1, &fence, VK_TRUE, 100000000000));
+    clock_t end = clock();
+    double time = ((double)(end - start) * 1000.0) / CLOCKS_PER_SEC;
+    n_debug_info("TIME: %.2f", time);
 
     vkDestroyFence(_gs.device.device, fence, NULL);
 }
