@@ -1,7 +1,7 @@
 #include "nandi/n_core.h"
 #include <stdlib.h>
 
-const char *ERROR_NAMES[] = {
+static const char *ERROR_NAMES[] = {
     #define X_ERR(name, code) #name,
     ERROR_LIST
     #undef X_ERR

@@ -23,18 +23,18 @@ static N_Error print_to_file_and_console(FILE *fstream, const char *fmt, ...) {
 
 static N_Error log_to_file(const char *prefix, const char *fmt, va_list args) {
     FILE *fstream;
-    if (fopen_s(&fstream, N_DEBUG_FILE, "a") != 0) {
+    if ((fstream = fopen(N_DEBUG_FILE, "a")) == NULL) {
         return N_ERR_FILE_OPEN;
     }
 
     if (prefix != NULL) {
         time_t raw_time;
         time(&raw_time);
-        struct tm local_time;
-        localtime_s(&local_time, &raw_time);
+        struct tm *local_time;
+        local_time = localtime(&raw_time);
 
         char time_str[128];
-        if (strftime(time_str, sizeof(time_str), "%H:%M:%S", &local_time) <= 0) {
+        if (strftime(time_str, sizeof(time_str), "%H:%M:%S", local_time) <= 0) {
             return N_ERR_SPRFTIME_FAIL;
         }
 

@@ -1,3 +1,4 @@
+#ifdef NANDI_WINDOWS
 #define _WINDOWS
 #ifdef _WINDOWS
 
@@ -119,4 +120,5 @@ extern int32_t n_input_mouse_wheel() {
     return inputData.mouse_wheel;
 }
 
+#endif
 #endif

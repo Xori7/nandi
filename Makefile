@@ -18,11 +18,28 @@ C_FLAGS = -g #-Wall -Wconversion -Wpedantic -Werror -std=c11
 
 ifeq ($(OS),Windows_NT)
 	LIBS = -L$(VULKAN_SDK)/Lib -lvulkan-1 -lcomctl32
+	C_FLAGS += -DNANDI_WINDOWS
 else ifeq ($(OS),Linux)
 	LIBS = -L$(VULKAN_SDK)/Lib -lvulkan
+	C_FLAGS += -DNANDI_LINUX
+	# this is not tested btw
+	DISPLAY_SERVER := $(shell \
+		if [ "$$XDG_SESSION_TYPE" = "wayland" ]; then echo "wayland"; \
+		elif [ "$$XDG_SESSION_TYPE" = "x11" ]; then echo "x11"; \
+		elif [ -n "$$WAYLAND_DISPLAY" ]; then echo "wayland"; \
+		elif [ -n "$$DISPLAY" ]; then echo "x11"; \
+		else echo "unknown"; fi \
+	)
+
+	ifeq ($(DISPLAY_SERVER),wayland)
+		C_FLAGS += -DNANDI_WAYLAND
+	endif
+	ifeq ($(DISPLAY_SERVER),x11)
+		C_FLAGS += -DNANDI_X11
+	endif
 endif
 
-TEST_LIBS = -L$(BUILD)/$(OS) -lnandi
+TEST_LIBS = -L$(BUILD)/$(OS) -lnandi -lm -lX11
 
 INCLUDES = $(subst \,/,-I$(VULKAN_SDK)/Include)
 INCLUDES += -Iinclude

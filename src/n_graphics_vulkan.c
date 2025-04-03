@@ -1,5 +1,6 @@
 #include "nandi/n_core.h"
 #include "nandi/n_graphics.h"
+#include "nandi_internal/n_graphics.h"
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -7,9 +8,27 @@
 #include <string.h>
 #include <time.h>
 
+// TODO(kkard2): why is this here?
+
+#ifdef NANDI_WINDOWS
 #define VK_USE_PLATFORM_WIN32_KHR
 #include "vulkan/vulkan.h"
 #include <windows.h>
+#endif
+
+#ifdef NANDI_LINUX
+
+#ifdef NANDI_X11
+#define VK_USE_PLATFORM_XLIB_KHR
+#include "vulkan/vulkan.h"
+#endif
+
+// TODO(kkard2): wayland
+
+#endif
+
+// TODO(kkard2): fail compilation if none of above matched
+
 #include "lodepng.h"
 
 #ifdef NDEBUG
@@ -129,7 +148,14 @@ static N_VkLayersInfo n_vk_enable_validation_layers() {
 
     layers_info.enabled_extensions[layers_info.enabled_extension_count++] = VK_EXT_DEBUG_REPORT_EXTENSION_NAME;
     layers_info.enabled_extensions[layers_info.enabled_extension_count++] = VK_KHR_SURFACE_EXTENSION_NAME;
+
+    // TODO(kkard2): i REALLY don't like polluting codebase with checks like this, we should move this somehow
+#ifdef NANDI_WINDOWS
     layers_info.enabled_extensions[layers_info.enabled_extension_count++] = VK_KHR_WIN32_SURFACE_EXTENSION_NAME;
+#endif
+#ifdef NANDI_X11
+    layers_info.enabled_extensions[layers_info.enabled_extension_count++] = VK_KHR_XLIB_SURFACE_EXTENSION_NAME;
+#endif
 
     return layers_info;
 }
@@ -358,9 +384,16 @@ extern void n_graphics_initialize(const N_Window *window) {
     _gs.descriptor_set_layout = n_vk_create_descriptor_set_layout();
     _gs.descriptorPool = n_vk_create_descriptor_pool();
     _gs.command_pool = n_vk_create_command_pool();
- 
+
+    // TODO(kkard2): move this as well, polluting code with these is a bad idea
+#ifdef NANDI_WINDOWS
     VkWin32SurfaceCreateInfoKHR surfaceInfo = { VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR, NULL, 0, GetModuleHandle(NULL), *(HWND*)window };
     vkCreateWin32SurfaceKHR(_gs.instance, &surfaceInfo, NULL, &_gs.surface);
+#endif
+#ifdef NANDI_X11
+    VkXlibSurfaceCreateInfoKHR surfaceInfo = { VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR, NULL, 0, window->display, window->handle };
+    vkCreateXlibSurfaceKHR(_gs.instance, &surfaceInfo, NULL, &_gs.surface);
+#endif
     _gs.initialized = TRUE;
 
     n_graphics_recreate_swap_chain(window);
@@ -445,8 +478,7 @@ struct N_Shader {
 // Read file into array of bytes, and cast to uint32_t*, then return.
 // The data has been padded, so that it fits into an array uint32_t.
 U32* read_file(uint32_t *length, const char* filename) {
-    FILE* fp;
-    fopen_s(&fp, filename, "rb");
+    FILE* fp = fopen(filename, "rb");
 
     if (fp == NULL) {
         printf("Could not find or open file: %s\n", filename);
@@ -496,9 +528,11 @@ extern N_Shader* n_graphics_shader_create(const char *shader_path) {
     // glslangValidator.exe -V shader.comp
     
     char spv_buffer[1000];
-    sprintf_s(spv_buffer, 1000, "%s.spv", shader_path);
+
+    // TODO(kkard2): make this safe again, linux doesn't have sprintf_s (until C11)
+    sprintf(spv_buffer, "%s.spv", shader_path);
     char compile_buffer[1000];
-    sprintf_s(compile_buffer, 1000, "glslangValidator.exe -V %s -o %s", shader_path, spv_buffer);
+    sprintf(compile_buffer, "glslangValidator.exe -V %s -o %s", shader_path, spv_buffer);
     assert(system(compile_buffer) == 0);
 
     U32* code = read_file(&file_length, spv_buffer);

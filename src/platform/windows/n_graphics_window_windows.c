@@ -1,3 +1,4 @@
+#ifdef NANDI_WINDOWS
 #include "nandi/n_graphics.h"
 #include <windows.h>
 #include <commctrl.h>
@@ -75,4 +76,4 @@ extern void n_graphics_window_set_client_size(const N_Window *window, U32 size_x
     SetWindowPos((HWND)window->handle, NULL, 0, 0, rect.right - rect.left, rect.bottom - rect.top, SWP_NOMOVE);
     UpdateWindow((HWND)window->handle);
 }
-
+#endif

@@ -19,7 +19,7 @@ void n_free(N_Allocator *allocator, void *ptr) {
 }
 
 static inline N_Error n_default_allocator_alloc(N_Allocator *allocator, size_t size, size_t alignment, void **out_ptr) {
-    *out_ptr = _aligned_malloc(size, alignment);
+    *out_ptr = malloc(size);
     if (*out_ptr == NULL) {
         return N_ERR_OUT_OF_MEMORY;
     } else {
