@@ -71,13 +71,6 @@ void run(void) {
     const N_CommandBuffer *command_buffer = n_graphics_command_buffer_create();
     const N_CommandBuffer *present_command_buffer = n_graphics_command_buffer_create();
 
-    clock_t start = clock();
-    clock_t end = clock();
-    double time = ((double)(end - start) * 1000.0) / CLOCKS_PER_SEC;
-    n_debug_info("TIME: %.2f", time);
-    U32 frames = 0;
-    // Calculate time in milliseconds
-
     n_graphics_command_buffer_reset(command_buffer);
     n_graphics_command_buffer_begin(command_buffer);
     n_graphics_command_buffer_cmd_dispatch(command_buffer, shader, 
@@ -88,10 +81,9 @@ void run(void) {
 
     Bool running = TRUE;
     while (running) {
-        frames++;
-        end = clock();
-        time = ((double)(end - start) * 1000.0) / CLOCKS_PER_SEC;
-        n_debug_info("FRAMES: %.2f", time / frames);
+        N_DEBUG_MESURE("frame",
+        F64 time = n_debug_time();
+
         n_input_update();
         if (n_input_key_down(NKEYCODE_P)) {
             running = FALSE;
@@ -104,13 +96,16 @@ void run(void) {
             c[i].color.x = sinf(i) * 1.0f;
             c[i].color.y = sinf(i * 2.5f + 2.3f) * 1.0f;
             c[i].color.z = sinf(i * 1.1 + 3.14) * 1.0f;
-            c[i].position.x = 5 + (8 * cosf(i * time * 0.0001f)) / (F32)CIRCLES_LEN * 10;
-            c[i].position.y = 5 + (8 * sinf(i * time * 0.0001f)) / (F32)CIRCLES_LEN * 10;
+            c[i].position.x = 5 + (8 * cosf(i * time * 0.1f)) / (F32)CIRCLES_LEN * 10;
+            c[i].position.y = 5 + (8 * sinf(i * time * 0.1f)) / (F32)CIRCLES_LEN * 10;
         }
         n_graphics_buffer_unmap(circle_buffer);
 
         n_graphics_command_buffer_submit(command_buffer);
+        N_DEBUG_MESURE("present",
         n_graphics_command_buffer_present(present_command_buffer, buffer);
+        );
+        );
     }
 
 

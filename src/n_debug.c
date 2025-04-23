@@ -93,3 +93,25 @@ extern void n_debug_print(const char *fmt, ...) {
     N_UNWRAP(log_to_file(NULL, fmt, args));
     va_end(args);
 }
+
+#include <stdio.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <time.h>
+#endif
+
+extern F64 n_debug_time(void) {
+#ifdef _WIN32
+    LARGE_INTEGER frequency, counter;
+    QueryPerformanceFrequency(&frequency);
+    QueryPerformanceCounter(&counter);
+    return (F64)(counter.QuadPart) / (F64)frequency.QuadPart;
+#else
+    //TODO(xori): check if that works
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (F64)ts.tv_sec + ts.tv_nsec;
+#endif
+}

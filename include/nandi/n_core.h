@@ -77,4 +77,16 @@ extern void n_debug_info(const char *fmt, ...);
 extern void n_debug_test(const char *fmt, ...);
 extern void n_debug_print(const char *fmt, ...);
 
+// returns current application time in seconds
+extern F64 n_debug_time(void);
+
+#define N_DEBUG_MESURE(name, code) \
+{\
+    F64 start = n_debug_time(); \
+    {code}\
+    F64 end = n_debug_time();\
+    F64 time = end - start;\
+    n_debug_info("N_DEBUG_MESURE %s: %.4fms", name, time * 1000);\
+}
+
 #endif // !N_CORE_H

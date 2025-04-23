@@ -620,7 +620,6 @@ extern void n_graphics_shader_set_buffer(N_Shader *shader, const N_GraphicsBuffe
 }
 
 struct N_CommandBuffer {
-
     VkCommandBuffer buffer;
 };
 
@@ -694,6 +693,7 @@ extern void n_graphics_command_buffer_present(const N_CommandBuffer *command_buf
         .imageOffset = { 0, 0, 0 },
         .imageExtent = { _gs.screen_width, _gs.screen_height, 1 }
     };
+
     vkCmdCopyBufferToImage(command_buffer->buffer, frame_buffer->data_buffer.buffer, swapchainImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
     // Transition to PRESENT_SRC_KHR
@@ -754,11 +754,9 @@ extern void n_graphics_command_buffer_submit(const N_CommandBuffer *command_buff
        Hence, we use a fence here.
        */
 
-    clock_t start = clock();
-    VK_CHECK_RESULT(vkWaitForFences(_gs.device.device, 1, &fence, VK_TRUE, 100000000000));
-    clock_t end = clock();
-    double time = ((double)(end - start) * 1000.0) / CLOCKS_PER_SEC;
-    n_debug_info("TIME FENCES: %.2f", time);
+    N_DEBUG_MESURE("fences",
+        VK_CHECK_RESULT(vkWaitForFences(_gs.device.device, 1, &fence, VK_TRUE, 100000000000));
+    );
 
     vkDestroyFence(_gs.device.device, fence, NULL);
 }
