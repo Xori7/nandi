@@ -1,4 +1,5 @@
 #include "nandi/n_core.h"
+#include <stdio.h>
 #include <stdlib.h>
 
 const char *ERROR_NAMES[] = {
@@ -14,7 +15,7 @@ extern const char *n_err_to_str(N_Error error) {
 extern void n_unwrap(N_Error error, const char *file, I32 line) {
     N_Error _err = error;
     if (_err != N_ERR_OK)  {
-        n_debug_err("n_unwrap panic with error: %s at <%s>:%d", n_err_to_str(_err), file, line);
+        printf("n_unwrap panic with error: %s at <%s>:%d", n_err_to_str(_err), file, line);
         exit((I32)_err);
     }
 }

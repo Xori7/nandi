@@ -90,8 +90,6 @@ void run(void) {
         }
 
         N_Circle *c = n_graphics_buffer_map(circle_buffer);
-        //cb->length = CIRCLES_LEN;
-        //N_Circle *c = cb->circles;
         for (U32 i = 0; i < CIRCLES_LEN; i++) {
             c[i].color.x = sinf(i) * 1.0f;
             c[i].color.y = sinf(i * 2.5f + 2.3f) * 1.0f;
