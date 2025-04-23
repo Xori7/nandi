@@ -19,7 +19,8 @@ C_FLAGS = -g -Wall -std=c11 #-Wconversion -Wpedantic -Werror
 ifeq ($(OS),Windows_NT)
 	LIBS = -L$(VULKAN_SDK)/Lib -lvulkan-1 -lcomctl32
 else ifeq ($(OS),Linux)
-	LIBS = -L$(VULKAN_SDK)/Lib -lvulkan
+	LIBS = -L$(VULKAN_SDK)/Lib -lvulkan -lrt 
+	C_FLAGS += -D_POSIX_C_SOURCE=199309L
 endif
 
 TEST_LIBS = -L$(BUILD)/$(OS) -lnandi

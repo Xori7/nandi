@@ -22,19 +22,18 @@ static N_Error print_to_file_and_console(FILE *fstream, const char *fmt, ...) {
 }
 
 static N_Error log_to_file(const char *prefix, const char *fmt, va_list args) {
-    FILE *fstream;
-    if (fopen_s(&fstream, N_DEBUG_FILE, "a") != 0) {
+    FILE *fstream = fopen(N_DEBUG_FILE, "a");
+    if (fstream == NULL) {
         return N_ERR_FILE_OPEN;
     }
 
     if (prefix != NULL) {
         time_t raw_time;
         time(&raw_time);
-        struct tm local_time;
-        localtime_s(&local_time, &raw_time);
+        struct tm *local_time = localtime(&raw_time);
 
         char time_str[128];
-        if (strftime(time_str, sizeof(time_str), "%H:%M:%S", &local_time) <= 0) {
+        if (strftime(time_str, sizeof(time_str), "%H:%M:%S", local_time) <= 0) {
             return N_ERR_SPRFTIME_FAIL;
         }
 
@@ -94,12 +93,8 @@ extern void n_debug_print(const char *fmt, ...) {
     va_end(args);
 }
 
-#include <stdio.h>
-
 #ifdef _WIN32
 #include <windows.h>
-#else
-#include <time.h>
 #endif
 
 extern F64 n_debug_time(void) {
@@ -109,7 +104,6 @@ extern F64 n_debug_time(void) {
     QueryPerformanceCounter(&counter);
     return (F64)(counter.QuadPart) / (F64)frequency.QuadPart;
 #else
-    //TODO(xori): check if that works
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (F64)ts.tv_sec + ts.tv_nsec;
