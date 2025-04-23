@@ -1,0 +1,49 @@
+#version 450
+
+#define workgroup_size 32
+
+layout (local_size_x = workgroup_size, local_size_y = workgroup_size, local_size_z = 1 ) in;
+
+struct RenderBuffer {
+    int width;
+    int height;
+    vec4 pixels[];
+};
+
+struct Vec2Buffer {
+    int length;
+    int padding;
+    vec4 values[];
+};
+
+struct IntBuffer {
+    int length;
+    int padding;
+    int values[];
+};
+
+layout(std430, binding = 0) buffer OutputBuffer
+{
+    RenderBuffer output;
+};
+
+layout(std430, binding = 2) buffer VertexBuffer
+{
+    Vec2Buffer vertex[];
+};
+
+layout(std430, binding = 3) buffer IndexBuffer
+{
+    IntBuffer indices[];
+};
+
+
+void main() {
+    if (gl_globalinvocationid.x >= width || gl_globalinvocationid.y >= height) {
+        return;
+    }
+
+    imagedata[width * gl_globalinvocationid.y + gl_globalinvocationid.x].value = 0;
+}
+
+// vim: set filetype=glsl :

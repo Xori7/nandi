@@ -18,9 +18,15 @@ typedef struct {
     float pad2[2];
 } N_Circle;
 
+typedef struct {
+    I32 length;
+    I32 padding;
+    N_Circle circles[];
+} N_CircleBuffer;
+
 #include <math.h>
 
-const int WIDTH = 1920; // Size of rendered mandelbrot set.
+const int WIDTH = 1080; // Size of rendered mandelbrot set.
 const int HEIGHT = 1080; // Size of renderered mandelbrot set.
 const int WORKGROUP_SIZE = 32; // Workgroup size in compute shader.
 
@@ -54,17 +60,13 @@ void run(void) {
 
     n_graphics_initialize(window);
 
-    U64 buffer_size = sizeof(Pixel) * WIDTH * HEIGHT;
-    const I32 CIRCLES_LEN = 2000;
-
-    N_GraphicsBuffer *buffer = n_graphics_buffer_create(buffer_size);
-    N_GraphicsBuffer *length_buffer = n_graphics_buffer_create(sizeof(I32));
-    N_GraphicsBuffer *circle_buffer = n_graphics_buffer_create(sizeof(N_Circle) * CIRCLES_LEN);
+    const I32 CIRCLES_LEN = 20;
+    const N_GraphicsBuffer *buffer = n_graphics_buffer_create((N_Vec4_I32){.x = WIDTH, .y = HEIGHT}, sizeof(Pixel));
+    const N_GraphicsBuffer *circle_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = CIRCLES_LEN}, sizeof(N_Circle));
 
     N_Shader *shader = n_graphics_shader_create("./shaders/shader.comp");
     n_graphics_shader_set_buffer(shader, buffer, 0);
-    n_graphics_shader_set_buffer(shader, circle_buffer, 2);
-    n_graphics_shader_set_buffer(shader, length_buffer, 3);
+    n_graphics_shader_set_buffer(shader, circle_buffer, 1);
 
     const N_CommandBuffer *command_buffer = n_graphics_command_buffer_create();
     const N_CommandBuffer *present_command_buffer = n_graphics_command_buffer_create();
@@ -75,10 +77,6 @@ void run(void) {
     n_debug_info("TIME: %.2f", time);
     U32 frames = 0;
     // Calculate time in milliseconds
-
-    I32 *len = n_graphics_buffer_map(length_buffer);
-    *len = CIRCLES_LEN;
-    n_graphics_buffer_unmap(length_buffer);
 
     n_graphics_command_buffer_reset(command_buffer);
     n_graphics_command_buffer_begin(command_buffer);
@@ -100,6 +98,8 @@ void run(void) {
         }
 
         N_Circle *c = n_graphics_buffer_map(circle_buffer);
+        //cb->length = CIRCLES_LEN;
+        //N_Circle *c = cb->circles;
         for (U32 i = 0; i < CIRCLES_LEN; i++) {
             c[i].color.x = sinf(i) * 1.0f;
             c[i].color.y = sinf(i * 2.5f + 2.3f) * 1.0f;
@@ -121,7 +121,6 @@ void run(void) {
 
     n_graphics_shader_destroy(shader);
     n_graphics_buffer_destroy(circle_buffer);
-    n_graphics_buffer_destroy(length_buffer);
     n_graphics_buffer_destroy(buffer);
 
     n_graphics_deinitialize();

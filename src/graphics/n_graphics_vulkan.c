@@ -366,41 +366,46 @@ extern void n_graphics_initialize(const N_Window *window) {
     n_graphics_recreate_swap_chain(window);
 }
 
-struct N_GraphicsBuffer {
+typedef struct {
     VkBuffer buffer;
     uint32_t buffer_size;
     VkDeviceMemory buffer_memory;
+} N_GPUBuffer;
+
+struct N_GraphicsBuffer {
+    N_GPUBuffer data_buffer;
+    N_GPUBuffer size_buffer;
+    N_Vec4_I32 size;
 };
 
-uint32_t findMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags properties) {
+U32 findMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags properties) {
     VkPhysicalDeviceMemoryProperties memoryProperties;
 
     vkGetPhysicalDeviceMemoryProperties(_gs.device.physical_device, &memoryProperties);
 
-    for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; ++i) {
+    for (U32 i = 0; i < memoryProperties.memoryTypeCount; ++i) {
         if ((memoryTypeBits & (1 << i)) &&
             ((memoryProperties.memoryTypes[i].propertyFlags & properties) == properties))
             return i;
     }
-    return (uint32_t)-1;
+    return (U32)-1;
 }
 
-extern N_GraphicsBuffer* n_graphics_buffer_create(U64 size) {
+static N_GPUBuffer n_gpu_buffer_create(U64 size) {
     VkBufferCreateInfo bufferCreateInfo = {0};
     bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferCreateInfo.size = size;
     bufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    N_GraphicsBuffer *graphics_buffer = malloc(sizeof(*graphics_buffer));
-    *graphics_buffer = (N_GraphicsBuffer) {
+    N_GPUBuffer graphics_buffer = (N_GPUBuffer) {
         .buffer_size = size
     };
 
-    VK_CHECK_RESULT(vkCreateBuffer(_gs.device.device, &bufferCreateInfo, NULL, &graphics_buffer->buffer));
+    VK_CHECK_RESULT(vkCreateBuffer(_gs.device.device, &bufferCreateInfo, NULL, &graphics_buffer.buffer));
 
     VkMemoryRequirements memoryRequirements;
-    vkGetBufferMemoryRequirements(_gs.device.device, graphics_buffer->buffer, &memoryRequirements);
+    vkGetBufferMemoryRequirements(_gs.device.device, graphics_buffer.buffer, &memoryRequirements);
     
     VkMemoryAllocateInfo allocateInfo = {0};
     allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -408,28 +413,57 @@ extern N_GraphicsBuffer* n_graphics_buffer_create(U64 size) {
     allocateInfo.memoryTypeIndex = findMemoryType(
             memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
-    VK_CHECK_RESULT(vkAllocateMemory(_gs.device.device, &allocateInfo, NULL, &graphics_buffer->buffer_memory)); // allocate memory on device.
+    VK_CHECK_RESULT(vkAllocateMemory(_gs.device.device, &allocateInfo, NULL, &graphics_buffer.buffer_memory)); // allocate memory on device.
     
     // Now associate that allocated memory with the buffer. With that, the buffer is backed by actual memory. 
-    VK_CHECK_RESULT(vkBindBufferMemory(_gs.device.device, graphics_buffer->buffer, graphics_buffer->buffer_memory, 0));
+    VK_CHECK_RESULT(vkBindBufferMemory(_gs.device.device, graphics_buffer.buffer, graphics_buffer.buffer_memory, 0));
 
     return graphics_buffer;
 }
 
+static void n_gpu_buffer_destroy(N_GPUBuffer buffer) {
+    vkFreeMemory(_gs.device.device, buffer.buffer_memory, NULL);
+    vkDestroyBuffer(_gs.device.device, buffer.buffer, NULL);	
+}
+
+static void* n_gpu_buffer_map(N_GPUBuffer buffer) {
+    void* mappedMemory = NULL;
+    VK_CHECK_RESULT(vkMapMemory(_gs.device.device, buffer.buffer_memory, 0, buffer.buffer_size, 0, &mappedMemory));
+    return mappedMemory;
+}
+
+static void n_gpu_buffer_unmap(N_GPUBuffer buffer) {
+    vkUnmapMemory(_gs.device.device, buffer.buffer_memory);
+}
+
+extern const N_GraphicsBuffer* n_graphics_buffer_create(N_Vec4_I32 size, U32 stride) {
+    N_GraphicsBuffer *buffer = malloc(sizeof(*buffer));
+    U64 buf_size = stride * size.x * (size.y > 0 ? size.y : 1) * (size.z > 0 ? size.z : 1) * (size.w > 0 ? size.w : 1);
+    buffer->data_buffer = n_gpu_buffer_create(buf_size);
+    buffer->size_buffer = n_gpu_buffer_create(sizeof(N_Vec4_I32));
+    buffer->size = size;
+    N_Vec4_I32 *size_mapped = n_gpu_buffer_map(buffer->size_buffer);
+    *size_mapped = size;
+    n_gpu_buffer_unmap(buffer->size_buffer);
+    return buffer;
+}
+
 extern void n_graphics_buffer_destroy(const N_GraphicsBuffer *buffer) {
-    vkFreeMemory(_gs.device.device, buffer->buffer_memory, NULL);
-    vkDestroyBuffer(_gs.device.device, buffer->buffer, NULL);	
+    n_gpu_buffer_destroy(buffer->data_buffer);
+    n_gpu_buffer_destroy(buffer->size_buffer);
     free((void*)buffer);
 }
 
 extern void* n_graphics_buffer_map(const N_GraphicsBuffer *buffer) {
-    void* mappedMemory = NULL;
-    VK_CHECK_RESULT(vkMapMemory(_gs.device.device, buffer->buffer_memory, 0, buffer->buffer_size, 0, &mappedMemory));
-    return mappedMemory;
+    return n_gpu_buffer_map(buffer->data_buffer);
 }
 
 extern void n_graphics_buffer_unmap(const N_GraphicsBuffer *buffer) {
-    vkUnmapMemory(_gs.device.device, buffer->buffer_memory);
+    n_gpu_buffer_unmap(buffer->data_buffer);
+}
+
+extern N_Vec4_I32 n_graphics_buffer_get_size(const N_GraphicsBuffer *buffer) {
+    return buffer->size;
 }
 
 struct N_Shader {
@@ -498,7 +532,7 @@ extern N_Shader* n_graphics_shader_create(const char *shader_path) {
     char spv_buffer[1000];
     sprintf_s(spv_buffer, 1000, "%s.spv", shader_path);
     char compile_buffer[1000];
-    sprintf_s(compile_buffer, 1000, "glslangValidator.exe -V %s -o %s", shader_path, spv_buffer);
+    sprintf_s(compile_buffer, 1000, "glslangValidator.exe -V %s -I./include/ -o %s", shader_path, spv_buffer);
     assert(system(compile_buffer) == 0);
 
     U32* code = read_file(&file_length, spv_buffer);
@@ -539,22 +573,49 @@ extern void n_graphics_shader_set_buffer(N_Shader *shader, const N_GraphicsBuffe
     }
     shader->buffers[binding_index] = buffer;
 
-    VkDescriptorBufferInfo descriptorBufferInfos[MAX_SHADER_BUFFER_COUNT];
-    for (U32 i = 0; i < shader->buffer_count; i++) {
-        descriptorBufferInfos[i] = (VkDescriptorBufferInfo) {
-            .buffer = buffer->buffer,
+//   U32 descriptor_count = shader->buffer_count * 2;
+//   VkDescriptorBufferInfo descriptorBufferInfos[MAX_SHADER_BUFFER_COUNT * 2];
+//   for (U32 i = 0; i < shader->buffer_count; i++) {
+//       descriptorBufferInfos[i * 2] = (VkDescriptorBufferInfo) {
+//           .buffer = buffer->data_buffer.buffer,
+//           .offset = 0,
+//           .range = buffer->data_buffer.buffer_size
+//       };
+//       descriptorBufferInfos[i * 2 + 1] = (VkDescriptorBufferInfo) {
+//           .buffer = buffer->size_buffer.buffer,
+//           .offset = 0,
+//           .range = buffer->size_buffer.buffer_size
+//       };
+//   }
+
+    VkDescriptorBufferInfo descriptorBufferInfo = (VkDescriptorBufferInfo) {
+            .buffer = buffer->data_buffer.buffer,
             .offset = 0,
-            .range = buffer->buffer_size
-        };
-    }
+            .range = buffer->data_buffer.buffer_size
+    };
 
     VkWriteDescriptorSet writeDescriptorSet = {0};
     writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     writeDescriptorSet.dstSet = shader->descriptor_set;
-    writeDescriptorSet.dstBinding = binding_index;
-    writeDescriptorSet.descriptorCount = shader->buffer_count;
+    writeDescriptorSet.dstBinding = binding_index * 2;
+    writeDescriptorSet.descriptorCount = 1;
     writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    writeDescriptorSet.pBufferInfo = descriptorBufferInfos;
+    writeDescriptorSet.pBufferInfo = &descriptorBufferInfo;
+    vkUpdateDescriptorSets(_gs.device.device, 1, &writeDescriptorSet, 0, NULL);
+
+    descriptorBufferInfo = (VkDescriptorBufferInfo) {
+            .buffer = buffer->size_buffer.buffer,
+            .offset = 0,
+            .range = buffer->size_buffer.buffer_size
+    };
+
+    writeDescriptorSet = (VkWriteDescriptorSet){0};
+    writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeDescriptorSet.dstSet = shader->descriptor_set;
+    writeDescriptorSet.dstBinding = binding_index * 2 + 1;
+    writeDescriptorSet.descriptorCount = 1;
+    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writeDescriptorSet.pBufferInfo = &descriptorBufferInfo;
     vkUpdateDescriptorSets(_gs.device.device, 1, &writeDescriptorSet, 0, NULL);
 }
 
@@ -633,7 +694,7 @@ extern void n_graphics_command_buffer_present(const N_CommandBuffer *command_buf
         .imageOffset = { 0, 0, 0 },
         .imageExtent = { _gs.screen_width, _gs.screen_height, 1 }
     };
-    vkCmdCopyBufferToImage(command_buffer->buffer, frame_buffer->buffer, swapchainImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    vkCmdCopyBufferToImage(command_buffer->buffer, frame_buffer->data_buffer.buffer, swapchainImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
     // Transition to PRESENT_SRC_KHR
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -697,7 +758,7 @@ extern void n_graphics_command_buffer_submit(const N_CommandBuffer *command_buff
     VK_CHECK_RESULT(vkWaitForFences(_gs.device.device, 1, &fence, VK_TRUE, 100000000000));
     clock_t end = clock();
     double time = ((double)(end - start) * 1000.0) / CLOCKS_PER_SEC;
-    n_debug_info("TIME: %.2f", time);
+    n_debug_info("TIME FENCES: %.2f", time);
 
     vkDestroyFence(_gs.device.device, fence, NULL);
 }

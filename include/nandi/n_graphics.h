@@ -1,4 +1,5 @@
 #include "nandi/n_core.h"
+#include "nandi/n_math.h"
 
 typedef struct N_Window N_Window;
 typedef void (*n_graphics_window_size_changed_func)(const N_Window *window);
@@ -15,12 +16,11 @@ extern void n_graphics_recreate_swap_chain(const N_Window *window);
 
 typedef struct N_GraphicsBuffer N_GraphicsBuffer;
 
-#define mut 
-
-extern N_GraphicsBuffer*    n_graphics_buffer_create(U64 size);
-extern void                 n_graphics_buffer_destroy(const N_GraphicsBuffer *buffer);
-extern void*                n_graphics_buffer_map(const N_GraphicsBuffer *buffer);
-extern void                 n_graphics_buffer_unmap(const N_GraphicsBuffer *buffer);
+extern const N_GraphicsBuffer*  n_graphics_buffer_create(N_Vec4_I32 size, U32 stride);
+extern void                     n_graphics_buffer_destroy(const N_GraphicsBuffer *buffer);
+extern void*                    n_graphics_buffer_map(const N_GraphicsBuffer *buffer);
+extern void                     n_graphics_buffer_unmap(const N_GraphicsBuffer *buffer);
+extern N_Vec4_I32               n_graphics_buffer_get_size(const N_GraphicsBuffer *buffer);
 
 #define MAX_SHADER_COUNT 256
 #define MAX_SHADER_BUFFER_COUNT 16 
@@ -28,7 +28,7 @@ typedef struct N_Shader N_Shader;
 
 extern N_Shader*    n_graphics_shader_create(const char *shader_path);
 extern void         n_graphics_shader_destroy(const N_Shader *shader);
-extern void         n_graphics_shader_set_buffer(mut N_Shader *shader, const N_GraphicsBuffer *buffer, U32 binding_index);
+extern void         n_graphics_shader_set_buffer(N_Shader *shader, const N_GraphicsBuffer *buffer, U32 binding_index);
 
 typedef struct N_CommandBuffer N_CommandBuffer;
 extern const N_CommandBuffer*  n_graphics_command_buffer_create(void);
@@ -43,4 +43,7 @@ extern void n_graphics_command_buffer_reset(const N_CommandBuffer *command_buffe
 typedef struct {
     char a, r, g, b;
 } Pixel;
+
+#define N_CPU 1
+#include "nandi/n_graphics_shader.h"
 

@@ -1,8 +1,10 @@
 #version 450
 
-#define WIDTH 1920
-#define HEIGHT 1080
 #define WORKGROUP_SIZE 32
+
+#extension GL_GOOGLE_include_directive : require
+
+#include "nandi/n_graphics_shader.h"
 
 layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE, local_size_z = 1 ) in;
 
@@ -11,25 +13,18 @@ struct Pixel{
 };
 
 struct Circle {
-    vec3 color;
+    N_Vec3_F32 color;
     float padding[1];
-    vec2 position;
+    N_Vec2_F32 position;
     float padding2[2];
 };
 
-layout(std430, binding = 0) buffer buf
-{
+BUFFER(frame_buffer, 0) {
     Pixel imageData[];
 };
 
-layout(std430, binding = 2) readonly buffer col
-{
-    Circle a[];
-};
-
-layout(std430, binding = 3) buffer len
-{
-    int length;
+BUFFER(circles_buffer, 1) {
+    Circle circles[];
 };
 
 float linear_to_srgb(float linear) {
@@ -40,28 +35,30 @@ float linear_to_srgb(float linear) {
 
 
 void main() {
-    if (gl_GlobalInvocationID.x >= WIDTH || gl_GlobalInvocationID.y >= HEIGHT) {
+    int width = frame_buffer_size_x;
+    int height = frame_buffer_size_y;
+    if (gl_GlobalInvocationID.x >= width || gl_GlobalInvocationID.y >= height) {
         return;
     }
 
-    //vec4 color = vec4(0.0, 0.0, 0.0, 1);
+    vec4 color = vec4(0.0, 0.0, 0.0, 1);
 
-    //float pos_x = 10 * float(gl_GlobalInvocationID.x) / float(WIDTH);
-    //float pos_y = 10 * float(gl_GlobalInvocationID.y) / float(HEIGHT);
+    float pos_x = 10 * float(gl_GlobalInvocationID.x) / float(width);
+    float pos_y = 10 * float(gl_GlobalInvocationID.y) / float(height);
 
-    //for (int i = 0; i < length; i++) {
-    //    Circle c = sharedCircles[i];
+    for (int i = 0; i < circles_buffer_size_x; i++) {
+        Circle c = circles[i];
 
-    //    float x = pos_x - c.position.x;
-    //    float y = pos_y - c.position.y;
+        float x = pos_x - c.position.x;
+        float y = pos_y - c.position.y;
 
-    //    float d = 0.1 * inversesqrt(x * x + y * y);
-    //    color += vec4(c.color * d, 0);
-    //}
+        float d = 0.1 * inversesqrt(x * x + y * y);
+        color += vec4(c.color * d, 0);
+    }
 
-    //uint bgra = packUnorm4x8(color.bgra);
+    uint bgra = packUnorm4x8(color.bgra);
 
-    imageData[WIDTH * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x].value = 1000;// bgra;
+    imageData[width * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x].value = bgra;
 }
 
-// vim: set filetype=glsl :
+// vim: set filetype=c :
