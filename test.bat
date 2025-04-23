@@ -14,4 +14,5 @@ link /NOLOGO %BUILD%\nandi.lib User32.lib Comctl32.lib %VULKAN_SDK%\Lib\vulkan-1
     /OUT:%BUILD%\test.exe && ^
 echo ---------- built test.exe ----------
 
+mkdir debug 2> NUL
 %BUILD%\test.exe
