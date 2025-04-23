@@ -108,10 +108,12 @@ static N_VkLayersInfo n_vk_enable_validation_layers() {
     N_VkLayersInfo layers_info = {0};
     layers_info.enabled_layers[layers_info.enabled_layer_count++] = (VK_LAYER_KHRONOS_VALIDATION);
 
-    uint32_t extensionCount;
-    vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, NULL);
-    VkExtensionProperties extensionProperties[extensionCount];
-    vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, extensionProperties);
+    // TODO(kkard2): figure out reasonable constant
+    VkExtensionProperties extensionProperties[256];
+    uint32_t extensionCount = 256;
+
+    // TODO(kkard2): function might return VK_INCOMPLETE if more than 256 extensions
+    VK_CHECK_RESULT(vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, extensionProperties));
 
     Bool foundExtension = FALSE;
     for (uint32_t i = 0; i < extensionCount; i++) {
@@ -135,14 +137,11 @@ static N_VkLayersInfo n_vk_enable_validation_layers() {
 }
 
 static VkPhysicalDevice n_vk_find_physical_device(VkInstance instance) {
-    uint32_t device_count;
-    vkEnumeratePhysicalDevices(instance, &device_count, NULL);
-    if (device_count == 0) {
-        printf("could not find a device with vulkan support");
-    }
-
-    VkPhysicalDevice devices[device_count];
-    vkEnumeratePhysicalDevices(instance, &device_count, devices);
+    // TODO(kkard2): figure out reasonable constant
+    VkPhysicalDevice devices[256];
+    uint32_t device_count = 256;
+    // TODO(kkard2): function might return VK_INCOMPLETE if more than 256 devices
+    VK_CHECK_RESULT(vkEnumeratePhysicalDevices(instance, &device_count, devices));
 
     //TODO(xori): add decision code for selecting best device and add more than one device support etc.
     VkPhysicalDevice result = NULL;
@@ -161,9 +160,9 @@ static VkPhysicalDevice n_vk_find_physical_device(VkInstance instance) {
 }
 
 uint32_t n_vk_get_compute_queue_family_index(VkPhysicalDevice physical_device) {
-    uint32_t queue_family_count;
-    vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, NULL);
-    VkQueueFamilyProperties queue_families[queue_family_count];
+    // TODO(kkard2): figure out reasonable constant
+    VkQueueFamilyProperties queue_families[256];
+    uint32_t queue_family_count = 256;
     vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, queue_families);
 
     uint32_t i = 0;

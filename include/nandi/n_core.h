@@ -21,21 +21,6 @@ typedef U8          Bool;
 #define TRUE ((U8)1)
 #define FALSE ((U8)0)
 
-typedef _Atomic(I8)   AtomicI8;
-typedef _Atomic(I16)  AtomicI16;
-typedef _Atomic(I32)  AtomicI32;
-typedef _Atomic(I64)  AtomicI64;
-
-typedef _Atomic(U8)   AtomicU8;
-typedef _Atomic(U16)  AtomicU16;
-typedef _Atomic(U32)  AtomicU32;
-typedef _Atomic(U64)  AtomicU64;
-
-typedef _Atomic(F32)  AtomicF32;
-typedef _Atomic(F64)  AtomicF64;
-
-typedef _Atomic(Bool) AtomicBool;
-
 // # ERROR #
 
 #define ERROR_LIST \
