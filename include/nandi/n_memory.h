@@ -1,6 +1,7 @@
 #if !N_MEMORY_H
 #define N_MEMORY_H 1
 #include "n_core.h"
+#include <stddef.h>
 
 typedef struct N_Allocator N_Allocator;
 

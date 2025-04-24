@@ -1,5 +1,4 @@
-#define _WINDOWS
-#ifdef _WINDOWS
+#ifdef _WIN32
 
 #include "nandi/n_input.h"
 #include <windows.h>

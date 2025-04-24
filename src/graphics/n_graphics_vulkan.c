@@ -526,9 +526,6 @@ extern N_Shader* n_graphics_shader_create(const char *shader_path) {
     VK_CHECK_RESULT(vkCreatePipelineLayout(_gs.device.device, &pipelineLayoutCreateInfo, NULL, &shader->pipeline_layout));
 
     uint32_t file_length = 0;
-    // the code in comp.spv was created by running the command:
-    // glslangValidator.exe -V shader.comp
-    
     char spv_buffer[1000];
     sprintf_s(spv_buffer, 1000, "%s.spv", shader_path);
     char compile_buffer[1000];
