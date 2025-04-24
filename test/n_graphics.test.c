@@ -31,6 +31,7 @@ const int HEIGHT = 1080; // Size of renderered mandelbrot set.
 const int WORKGROUP_SIZE = 32; // Workgroup size in compute shader.
 
 void saveRenderedImage(const N_GraphicsBuffer *buffer) {
+
     n_debug_info("Saving the image...");
     // Map the buffer memory, so that we can read from it on the CPU.
     Pixel* pmappedMemory = n_graphics_buffer_map(buffer);
@@ -54,7 +55,6 @@ void on_window_size_changed(const N_Window *window) {
 }
 
 void run(void) {
-
     N_Window *window = n_graphics_window_create("nandi", &on_window_size_changed);
     n_graphics_window_set_client_size(window, WIDTH, HEIGHT);
 
