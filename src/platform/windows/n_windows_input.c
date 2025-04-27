@@ -1,4 +1,4 @@
-#ifdef _WIN32
+#if _WIN32
 
 #include "nandi/n_input.h"
 #include <windows.h>
@@ -118,4 +118,4 @@ extern int32_t n_input_mouse_wheel() {
     return inputData.mouse_wheel;
 }
 
-#endif
+#endif // _WIN32

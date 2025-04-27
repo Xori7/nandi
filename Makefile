@@ -19,14 +19,20 @@ C_FLAGS = -g -Wall -std=c11 #-Wconversion -Wpedantic -Werror
 ifeq ($(OS),Windows_NT)
 	LIBS = -L$(VULKAN_SDK)/Lib -lvulkan-1 -lcomctl32
 else ifeq ($(OS),Linux)
-	LIBS = -L$(VULKAN_SDK)/Lib -lvulkan -lrt 
-	C_FLAGS += -D_POSIX_C_SOURCE=199309L
+	# TODO(kkard2): wayland probably
+	LIBS = -L$(VULKAN_SDK)/Lib -lvulkan -lrt -lX11
+	C_FLAGS += -D_POSIX_C_SOURCE=199309L -DN_LINUX_X11
 endif
 
-TEST_LIBS = -L$(BUILD)/$(OS) -lnandi
+ifeq ($(OS),Windows_NT)
+	TEST_LIBS = -L$(BUILD)/$(OS) -lnandi
+else ifeq ($(OS),Linux)
+	TEST_LIBS = -L$(BUILD)/$(OS) -lnandi
+endif
 
 INCLUDES = $(subst \,/,-I$(VULKAN_SDK)/Include)
 INCLUDES += -Iinclude
+INCLUDES += -Isrc
 
 SRC_FILES = $(wildcard $(SRC)/*.c) $(wildcard $(SRC)/**/*.c) $(wildcard $(SRC)/**/**/*.c) $(wildcard $(SRC)/**/**/**/*.c) $(wildcard $(SRC)/**/**/**/**/*.c)
 TEST_SRC_FILES = $(wildcard $(TEST)/*.c) $(wildcard $(TEST)/**/*.c) $(wildcard $(TEST)/**/**/*.c) $(wildcard $(TEST)/**/**/**/*.c) $(wildcard $(TEST)/**/**/**/**/*.c)
@@ -37,7 +43,7 @@ TEST_OBJ_FILES = $(patsubst $(TEST)/%.c, $(BUILD)/$(OS)/$(TEST)/%.o, $(TEST_SRC_
 ifeq ($(OS),Windows_NT)
 	TARGET = $(BUILD)/$(OS)/$(GAME_NAME).dll
 else ifeq ($(OS),Linux)
-	TARGET = $(BUILD)/$(OS)/$(GAME_NAME).so
+	TARGET = $(BUILD)/$(OS)/lib$(GAME_NAME).so
 endif
 
 TEST_TARGET = $(BUILD)/$(OS)/$(GAME_NAME)_test

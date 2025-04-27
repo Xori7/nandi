@@ -1,3 +1,6 @@
+#if !N_GRAPHICS_H
+#define N_GRAPHICS_H 1
+
 #include "nandi/n_core.h"
 #include "nandi/n_math.h"
 
@@ -47,3 +50,4 @@ typedef struct {
 #define N_CPU 1
 #include "nandi/n_graphics_shader.h"
 
+#endif // !N_GRAPHICS_H

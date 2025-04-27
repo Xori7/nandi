@@ -1,33 +1,20 @@
 #include "nandi/n_core.h"
 #include "nandi/n_graphics.h"
+#include "platform/n_platform_graphics_window.h"
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
-#define VK_USE_PLATFORM_WIN32_KHR
-#include "vulkan/vulkan.h"
-#include <windows.h>
 #include "lodepng.h"
+#include "n_graphics_vulkan.h"
 
 #ifdef NDEBUG
 const Bool enableValidationLayers = FALSE;
 #else
 const Bool enableValidationLayers = TRUE;
 #endif
-
-// Used for validating return values of Vulkan API calls.
-#define VK_CHECK_RESULT(f) 																				\
-{																										\
-    VkResult res = (f);																					\
-    if (res != VK_SUCCESS)																				\
-    {																									\
-        n_debug_err("Fatal : VkResult is %d in %s at line %d\n", res,  __FILE__, __LINE__); \
-        assert(res == VK_SUCCESS);																		\
-    }																									\
-}
 
 // The pixels of the rendered mandelbrot set are in this format:
 
@@ -129,7 +116,13 @@ static N_VkLayersInfo n_vk_enable_validation_layers() {
 
     layers_info.enabled_extensions[layers_info.enabled_extension_count++] = VK_EXT_DEBUG_REPORT_EXTENSION_NAME;
     layers_info.enabled_extensions[layers_info.enabled_extension_count++] = VK_KHR_SURFACE_EXTENSION_NAME;
+
+// TODO(kkard2): other platforms
+#ifdef _WIN32
     layers_info.enabled_extensions[layers_info.enabled_extension_count++] = VK_KHR_WIN32_SURFACE_EXTENSION_NAME;
+#else
+    layers_info.enabled_extensions[layers_info.enabled_extension_count++] = VK_KHR_XLIB_SURFACE_EXTENSION_NAME;
+#endif
 
     return layers_info;
 }
@@ -358,9 +351,9 @@ extern void n_graphics_initialize(const N_Window *window) {
     _gs.descriptor_set_layout = n_vk_create_descriptor_set_layout();
     _gs.descriptorPool = n_vk_create_descriptor_pool();
     _gs.command_pool = n_vk_create_command_pool();
- 
-    VkWin32SurfaceCreateInfoKHR surfaceInfo = { VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR, NULL, 0, GetModuleHandle(NULL), *(HWND*)window };
-    vkCreateWin32SurfaceKHR(_gs.instance, &surfaceInfo, NULL, &_gs.surface);
+
+    // TODO(kkard2): check surface creation
+    _gs.surface = n_graphics_window_create_surface(window, _gs.instance);
     _gs.initialized = TRUE;
 
     n_graphics_recreate_swap_chain(window);
@@ -479,8 +472,7 @@ struct N_Shader {
 // Read file into array of bytes, and cast to uint32_t*, then return.
 // The data has been padded, so that it fits into an array uint32_t.
 U32* read_file(uint32_t *length, const char* filename) {
-    FILE* fp;
-    fopen_s(&fp, filename, "rb");
+    FILE* fp = fopen(filename, "rb");
 
     if (fp == NULL) {
         printf("Could not find or open file: %s\n", filename);
@@ -527,9 +519,9 @@ extern N_Shader* n_graphics_shader_create(const char *shader_path) {
 
     uint32_t file_length = 0;
     char spv_buffer[1000];
-    sprintf_s(spv_buffer, 1000, "%s.spv", shader_path);
+    snprintf(spv_buffer, 1000, "%s.spv", shader_path);
     char compile_buffer[1000];
-    sprintf_s(compile_buffer, 1000, "glslangValidator.exe -V %s -I./include/ -o %s", shader_path, spv_buffer);
+    snprintf(compile_buffer, 1000, "glslangValidator.exe -V %s -I./include/ -o %s", shader_path, spv_buffer);
     assert(system(compile_buffer) == 0);
 
     U32* code = read_file(&file_length, spv_buffer);

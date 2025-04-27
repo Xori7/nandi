@@ -19,7 +19,11 @@ void n_free(N_Allocator *allocator, void *ptr) {
 }
 
 static inline N_Error n_default_allocator_alloc(N_Allocator *allocator, size_t size, size_t alignment, void **out_ptr) {
+#ifdef _WIN32
     *out_ptr = _aligned_malloc(size, alignment);
+#else
+    *out_ptr = aligned_alloc(size, alignment);
+#endif
     if (*out_ptr == NULL) {
         return N_ERR_OUT_OF_MEMORY;
     } else {
@@ -28,7 +32,11 @@ static inline N_Error n_default_allocator_alloc(N_Allocator *allocator, size_t s
 }
 
 static inline void n_default_allocator_free(N_Allocator *allocator, void *ptr) {
+#ifdef _WIN32
+    _aligned_free(ptr);
+#else
     free(ptr);
+#endif
 }
 
 void n_default_allocator_init(N_DefaultAllocator *out_allocator) {
