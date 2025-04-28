@@ -27,7 +27,7 @@ endif
 ifeq ($(OS),Windows_NT)
 	TEST_LIBS = -L$(BUILD)/$(OS) -lnandi
 else ifeq ($(OS),Linux)
-	TEST_LIBS = -L$(BUILD)/$(OS) -lnandi
+	TEST_LIBS = -L$(BUILD)/$(OS) -lnandi -lm
 endif
 
 INCLUDES = $(subst \,/,-I$(VULKAN_SDK)/Include)

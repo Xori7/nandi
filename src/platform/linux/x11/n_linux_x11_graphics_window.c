@@ -41,6 +41,8 @@ extern N_Window* n_graphics_window_create(const char *title, n_graphics_window_s
         return NULL;
     }
 
+    // TODO(kkard2): assert
+    XMapWindow(result.display, result.window);
     XStoreName(result.display, result.window, title);
 
     N_Window *result_alloc = malloc(sizeof(N_Window));
