@@ -521,7 +521,13 @@ extern N_Shader* n_graphics_shader_create(const char *shader_path) {
     char spv_buffer[1000];
     snprintf(spv_buffer, 1000, "%s.spv", shader_path);
     char compile_buffer[1000];
+    // TODO(kkard2): this is bad
+
+#if _WIN32
     snprintf(compile_buffer, 1000, "glslangValidator.exe -V %s -I./include/ -o %s", shader_path, spv_buffer);
+#else
+    snprintf(compile_buffer, 1000, "glslangValidator -V %s -I./include/ -o %s", shader_path, spv_buffer);
+#endif
     assert(system(compile_buffer) == 0);
 
     U32* code = read_file(&file_length, spv_buffer);

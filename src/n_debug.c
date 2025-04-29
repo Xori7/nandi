@@ -4,12 +4,18 @@
 #include <time.h>
 
 static N_Error vprint_to_file_and_console(FILE *fstream, const char *fmt, va_list args) {
+    va_list args_copy;
+    va_copy(args_copy, args);
+
     if (vprintf(fmt, args) < 0) {
+        va_end(args_copy);
         return N_ERR_PRINTF_FAIL;
     }
-    if (vfprintf(fstream, fmt, args) < 0) {
+    if (vfprintf(fstream, fmt, args_copy) < 0) {
+        va_end(args_copy);
         return N_ERR_PRINTF_FAIL;
     }
+    va_end(args_copy);
     return N_ERR_OK;
 }
 
@@ -106,6 +112,6 @@ extern F64 n_debug_time(void) {
 #else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (F64)ts.tv_sec + ts.tv_nsec;
+    return (F64)ts.tv_sec + ((F64)ts.tv_nsec / 1000000000);
 #endif
 }

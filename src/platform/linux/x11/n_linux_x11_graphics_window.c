@@ -3,7 +3,10 @@
 #include "nandi/n_graphics.h"
 #include "platform/n_platform_graphics_window.h"
 #include <X11/Xlib.h>
+#include <X11/Xutil.h>
+
 #include <stdlib.h>
+#include <string.h>
 
 struct N_Window {
     Display *display;
@@ -27,27 +30,51 @@ extern U32 n_graphics_window_get_size_y(const N_Window *window) {
 
 extern N_Window* n_graphics_window_create(const char *title, n_graphics_window_size_changed_func on_size_changed_func) {
     N_Window result = {0};
+
     result.display = XOpenDisplay(NULL);
     if (!result.display) {
-        return NULL;
+        n_debug_err("failed to XOpenDisplay\n");
+        goto error;
     }
 
 
     Window root_window = DefaultRootWindow(result.display);
-    result.window = XCreateSimpleWindow(result.display, root_window, 0, 0, 640, 480, 0, 0, 0);
 
+    // TODO(kkard2): don't do that, you need to handle resize properly
+    //               when changing that remove XSizeHints below
+    result.size_x = 1080;
+    result.size_y = 1080;
+
+    result.window = XCreateSimpleWindow(result.display, root_window, 0, 0, result.size_x, result.size_y, 0, 0, 0);
     if (!result.window) {
-        XCloseDisplay(result.display);
-        return NULL;
+        n_debug_err("failed to XCreateSimpleWindow\n");
+        goto error;
     }
 
-    // TODO(kkard2): assert
-    XMapWindow(result.display, result.window);
-    XStoreName(result.display, result.window, title);
+    XSizeHints size_hints;
+    memset(&size_hints, 0, sizeof(XSizeHints));
+    size_hints.flags = PMinSize | PMaxSize;
+    size_hints.min_width = size_hints.max_width = result.size_x;
+    size_hints.min_height = size_hints.max_height = result.size_y;
+    XSetWMNormalHints(result.display, result.window, &size_hints);
+
+    if (!XMapWindow(result.display, result.window)) {
+        n_debug_err("failed to XMapWindow\n");
+        goto error;
+    }
+    if (!XStoreName(result.display, result.window, title)) {
+        n_debug_err("failed to XStoreName\n");
+        goto error;
+    }
 
     N_Window *result_alloc = malloc(sizeof(N_Window));
     *result_alloc = result;
     return result_alloc;
+
+error:
+    if (result.window)  XDestroyWindow(result.display, result.window);
+    if (result.display) XCloseDisplay(result.display);
+    return NULL;
 }
 
 extern void n_graphics_window_destroy(const N_Window *window) {

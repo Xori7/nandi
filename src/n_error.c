@@ -14,7 +14,7 @@ extern const char *n_err_to_str(N_Error error) {
 extern void n_unwrap(N_Error error, const char *file, I32 line) {
     N_Error _err = error;
     if (_err != N_ERR_OK)  {
-        printf("n_unwrap panic with error: %s at <%s>:%d", n_err_to_str(_err), file, line);
+        printf("n_unwrap panic with error: %s at <%s>:%d\n", n_err_to_str(_err), file, line);
         exit((I32)_err);
     }
 }

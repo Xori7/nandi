@@ -22,7 +22,7 @@ static inline N_Error n_default_allocator_alloc(N_Allocator *allocator, size_t s
 #ifdef _WIN32
     *out_ptr = _aligned_malloc(size, alignment);
 #else
-    *out_ptr = aligned_alloc(size, alignment);
+    *out_ptr = aligned_alloc(alignment, size);
 #endif
     if (*out_ptr == NULL) {
         return N_ERR_OUT_OF_MEMORY;

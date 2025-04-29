@@ -52,7 +52,7 @@ build: $(TARGET)
 build_test: $(TEST_TARGET)
 
 test: build build_test
-	./$(TEST_TARGET)
+	LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(BUILD)/$(OS)/ ./$(TEST_TARGET)
 
 init: 
 	rm -f ./compile_flags.txt
