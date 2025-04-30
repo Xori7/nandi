@@ -14,7 +14,7 @@ TEST = test
 #_Config
 
 CC = gcc
-C_FLAGS = -g -Wall -std=c11 #-Wconversion -Wpedantic -Werror
+C_FLAGS = -g -Wall -std=c11 -fPIC #-Wconversion -Wpedantic -Werror
 
 ifeq ($(OS),Windows_NT)
 	LIBS = -L$(VULKAN_SDK)/Lib -lvulkan-1 -lcomctl32
