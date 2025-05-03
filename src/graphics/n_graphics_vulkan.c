@@ -519,14 +519,14 @@ extern N_Shader* n_graphics_shader_create(const char *shader_path) {
 
     uint32_t file_length = 0;
     char spv_buffer[1000];
-    snprintf(spv_buffer, 1000, "%s.spv", shader_path);
-    char compile_buffer[1000];
+    snprintf(spv_buffer, sizeof(spv_buffer), "%s.spv", shader_path);
+    char compile_buffer[2000];
     // TODO(kkard2): this is bad
 
 #if _WIN32
     snprintf(compile_buffer, 1000, "glslangValidator.exe -V %s -I./include/ -o %s", shader_path, spv_buffer);
 #else
-    snprintf(compile_buffer, 1000, "glslangValidator -V %s -I./include/ -o %s", shader_path, spv_buffer);
+    snprintf(compile_buffer, sizeof(compile_buffer), "glslangValidator -V %s -I./include/ -o %s", shader_path, spv_buffer);
 #endif
     assert(system(compile_buffer) == 0);
 
