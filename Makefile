@@ -21,7 +21,7 @@ ifeq ($(OS),Windows_NT)
 else ifeq ($(OS),Linux)
 	# TODO(kkard2): wayland probably
 	LIBS = -L$(VULKAN_SDK)/Lib -lvulkan -lrt -lX11
-	C_FLAGS += -D_POSIX_C_SOURCE=199309L -DN_LINUX_X11
+	C_FLAGS += -DN_LINUX_X11
 endif
 
 ifeq ($(OS),Windows_NT)

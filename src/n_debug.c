@@ -1,3 +1,6 @@
+// NOTE(kkard2): idk man
+#define _POSIX_C_SOURCE 199309L
+
 #include "nandi/n_core.h"
 #include <stdarg.h>
 #include <stdio.h>
