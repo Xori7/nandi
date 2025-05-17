@@ -136,9 +136,10 @@ void run(void) {
     n_graphics_shader_destroy(shader);
     n_graphics_buffer_destroy(vertex_buffer);
     n_graphics_buffer_destroy(frame_buffer);
+    n_graphics_buffer_destroy(color_buffer);
+    n_graphics_buffer_destroy(index_buffer);
 
     n_graphics_deinitialize();
-
     n_graphics_window_destroy(window);
 }
 

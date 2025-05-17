@@ -1,4 +1,7 @@
+#ifdef _WIN32
+
 #include "nandi/n_graphics.h"
+#include "platform/n_platform_graphics_window.h"
 #include <windows.h>
 #include <commctrl.h>
 
@@ -29,6 +32,13 @@ LRESULT WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam, UINT
             return 0;
     }
     return DefWindowProc(window, message, wparam, lparam);
+}
+
+VkSurfaceKHR n_graphics_window_create_surface(const N_Window *window, VkInstance instance) {
+    VkWin32SurfaceCreateInfoKHR surfaceInfo = { VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR, NULL, 0, GetModuleHandle(NULL), window->handle };
+    VkSurfaceKHR result;
+    VK_CHECK_RESULT(vkCreateWin32SurfaceKHR(instance, &surfaceInfo, NULL, &result));
+    return result;
 }
 
 extern U32 n_graphics_window_get_size_x(const N_Window *window) {
@@ -76,3 +86,4 @@ extern void n_graphics_window_set_client_size(const N_Window *window, U32 size_x
     UpdateWindow((HWND)window->handle);
 }
 
+#endif // _WIN32
