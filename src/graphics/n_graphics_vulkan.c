@@ -7,7 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include "lodepng.h"
 #include "n_graphics_vulkan.h"
 
 #ifdef NDEBUG

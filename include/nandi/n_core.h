@@ -49,7 +49,6 @@ typedef _Atomic(Bool) AtomicBool;
     X_ERR(N_ERR_PRINTF_FAIL                 , 1006) \
     X_ERR(N_ERR_SPRFTIME_FAIL               , 1007) \
 
-
 typedef enum {
     #define X_ERR(name, code) name = code,
     ERROR_LIST

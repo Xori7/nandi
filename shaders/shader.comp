@@ -45,13 +45,13 @@ vec3 PointInTriangle (N_Vec2_F32 p, N_Vec2_F32 p0, N_Vec2_F32 p1, N_Vec2_F32 p2)
 }
 
 void compute(int x, int y) {
-    int width = frame_buffer_size_x;
-    int height = frame_buffer_size_y;
+    int width = n_buffer_size_x(frame_buffer);
+    int height = n_buffer_size_y(frame_buffer);
 }
 
 void main() {
-    int width = frame_buffer_size_x;
-    int height = frame_buffer_size_y;
+    int width = n_buffer_size_x(frame_buffer);
+    int height = n_buffer_size_y(frame_buffer);
     int id = int(gl_GlobalInvocationID.x) * 3;
     const int CHUNK_SIZE = 1;
     if (id >= index_buffer_size_x) {

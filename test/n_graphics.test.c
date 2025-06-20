@@ -34,7 +34,7 @@ void saveRenderedImage(const N_GraphicsBuffer *buffer) {
 
     n_debug_info("Saving the image...");
     // Map the buffer memory, so that we can read from it on the CPU.
-    Pixel* pmappedMemory = n_graphics_buffer_map(buffer);
+    N_ARGB_U8* pmappedMemory = n_graphics_buffer_map(buffer);
 
     // Get the color data from the buffer, and cast it to bytes.
     // We save the data to a vector.
@@ -62,7 +62,7 @@ void run(void) {
 
     const I32 VERTEX_COUNT = 6;
     const I32 INDEX_COUNT = VERTEX_COUNT * VERTEX_COUNT * 6;
-    const N_GraphicsBuffer *frame_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = WIDTH, .y = HEIGHT}, sizeof(Pixel));
+    const N_GraphicsBuffer *frame_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = WIDTH, .y = HEIGHT}, sizeof(N_ARGB_U8));
     const N_GraphicsBuffer *vertex_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = VERTEX_COUNT * VERTEX_COUNT * 4}, sizeof(N_Vec2_F32));
     const N_GraphicsBuffer *color_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = VERTEX_COUNT * VERTEX_COUNT}, sizeof(N_Vec4_F32));
     const N_GraphicsBuffer *index_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = INDEX_COUNT}, sizeof(U32));

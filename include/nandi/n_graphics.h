@@ -44,10 +44,13 @@ extern void n_graphics_command_buffer_submit(const N_CommandBuffer *command_buff
 extern void n_graphics_command_buffer_reset(const N_CommandBuffer *command_buffer);
 
 typedef struct {
-    char a, r, g, b;
-} Pixel;
+    U8 a, r, g, b;
+} N_ARGB_U8;
 
-#define N_CPU 1
+typedef struct {
+    F32 a, r, g, b;
+} N_ARGB_F32;
+
+#define N_GRAPHICS_CPU 1
 #include "nandi/n_graphics_shader.h"
-
 #endif // !N_GRAPHICS_H

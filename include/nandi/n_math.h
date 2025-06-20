@@ -26,9 +26,5 @@ typedef struct {
     I32 x, y, z, w;
 } N_Vec4_I32;
 
-typedef struct {
-    F32 a, r, g, b;
-} N_ARGB_F32;
-
 
 #endif // !N_MATH_H
