@@ -1,93 +1,11 @@
 #version 450
-
 #define WORKGROUP_SIZE 32
-
 #extension GL_GOOGLE_include_directive : require
-
 #include "nandi/n_graphics_shader.h"
+#include "./rasterizer.comp"
 
-layout (local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1 ) in;
-
-struct Pixel{
-    uint value;
-};
-
-BUFFER(frame_buffer, 0) {
-    Pixel imageData[];
-};
-
-BUFFER(vertex_buffer, 1) {
-    N_Vec2_F32 vertices[];
-};
-
-BUFFER(color_buffer, 2) {
-    N_Vec4_F32 colors[];
-};
-
-BUFFER(index_buffer, 3) {
-    int indices[];
-};
-
-float linear_to_srgb(float linear) {
-    if (linear <= 0.0031308)
-        return 12.92 * linear;
-    return 1.055 * pow(linear, 1.0 / 2.4) - 0.055;
-}
-
-vec3 PointInTriangle (N_Vec2_F32 p, N_Vec2_F32 p0, N_Vec2_F32 p1, N_Vec2_F32 p2)
-{
-    float A = 0.5 * (-p1.y * p2.x + p0.y * (-p1.x + p2.x) + p0.x * (p1.y - p2.y) + p1.x * p2.y);
-    float s = 1.0 / (2*A)*(p0.y*p2.x - p0.x*p2.y + (p2.y - p0.y)*p.x + (p0.x - p2.x)*p.y);
-    float t = 1.0 / (2*A)*(p0.x*p1.y - p0.y*p1.x + (p0.y - p1.y)*p.x + (p1.x - p0.x)*p.y);
-    float r = 1 - s - t;
-    
-    return vec3(s, t, r);
-}
-
-void compute(int x, int y) {
-    int width = n_buffer_size_x(frame_buffer);
-    int height = n_buffer_size_y(frame_buffer);
-}
-
-void main() {
-    int width = n_buffer_size_x(frame_buffer);
-    int height = n_buffer_size_y(frame_buffer);
-    int id = int(gl_GlobalInvocationID.x) * 3;
-    const int CHUNK_SIZE = 1;
-    if (id >= index_buffer_size_x) {
-        return;
-    }
-    vec2 v0 = vertices[indices[id]];
-    v0.x = int(v0.x * width);
-    v0.y = int(v0.y * height);
-    vec2 v1 = vertices[indices[id + 1]];
-    v1.x = int(v1.x * width);
-    v1.y = int(v1.y * height);
-    vec2 v2 = vertices[indices[id + 2]];
-    v2.x = int(v2.x * width);
-    v2.y = int(v2.y * height);
-
-    vec2 tmin = vec2(min(min(v0.x, v1.x), v2.x), min(min(v0.y, v1.y), v2.y));
-    tmin.x = max(tmin.x, 0);
-    tmin.y = max(tmin.y, 0);
-    vec2 tmax = vec2(max(max(v0.x, v1.x), v2.x), max(max(v0.y, v1.y), v2.y));
-    tmax.x = min(tmax.x, width - 1);
-    tmax.y = min(tmax.y, height - 1);
-
-    vec4 c0 = colors[indices[id]];
-    vec4 c1 = colors[indices[id + 1]];
-    vec4 c2 = colors[indices[id + 2]];
-
-    for (int x = int(tmin.x); x < tmax.x; x++) {
-        for (int y = int(tmin.y); y < tmax.y; y++) {
-            vec3 baricentric = PointInTriangle(vec2(x, y), v0, v1, v2);//vertices[indices[i]], vertices[indices[i + 1]], vertices[indices[i + 2]])) {
-            if (baricentric.x >= 0 && baricentric.y >= 0 && baricentric.z >= 0) {
-                vec4 color = c0 * baricentric.z + c1 * baricentric.x + c2 * baricentric.y;
-                uint bgra = packUnorm4x8(color.bgra);
-                imageData[width * y + x].value = bgra;
-            }
-        }
-    }
+vec4 frag(vec4 uv) {
+    return uv * uv;
 }
 
 // vim: set filetype=c :

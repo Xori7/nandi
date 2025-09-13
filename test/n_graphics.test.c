@@ -60,7 +60,7 @@ void run(void) {
 
     n_graphics_initialize(window);
 
-    const I32 VERTEX_COUNT = 6;
+    const I32 VERTEX_COUNT = 50;
     const I32 INDEX_COUNT = VERTEX_COUNT * VERTEX_COUNT * 6;
     const N_GraphicsBuffer *frame_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = WIDTH, .y = HEIGHT}, sizeof(N_ARGB_U8));
     const N_GraphicsBuffer *vertex_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = VERTEX_COUNT * VERTEX_COUNT * 4}, sizeof(N_Vec2_F32));
@@ -113,17 +113,34 @@ void run(void) {
     Bool running = TRUE;
     while (running) {
         N_DEBUG_MESURE("frame",
-            F64 time = n_debug_time();
-
+            N_DEBUG_MESURE("input",
             n_input_update();
             if (n_input_key_down(NKEYCODE_P)) {
-            running = FALSE;
+                running = FALSE;
             }
+            );
+
+            N_DEBUG_MESURE("frame buffer rebuild",
+            N_Vec4_I32 size = n_graphics_buffer_get_size(frame_buffer);
+            U32 width = n_graphics_window_get_size_x(window);
+            U32 height = n_graphics_window_get_size_y(window);
+            if (size.x != width || size.y != height) {
+                n_graphics_buffer_destroy(frame_buffer);
+                frame_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = width, .y = height}, sizeof(N_ARGB_U8));
+                n_graphics_shader_set_buffer(shader, frame_buffer, 0);
+
+                n_graphics_command_buffer_reset(command_buffer);
+                n_graphics_command_buffer_begin(command_buffer);
+                n_graphics_command_buffer_cmd_dispatch(command_buffer, shader, (U32)ceil(INDEX_COUNT / (float)(WORKGROUP_SIZE)), 1, 1);
+                n_graphics_command_buffer_end(command_buffer);
+            }
+            );
 
             n_graphics_command_buffer_submit(command_buffer);
+
             N_DEBUG_MESURE("present",
                 n_graphics_command_buffer_present(present_command_buffer, frame_buffer);
-                );
+            );
         );
     }
 

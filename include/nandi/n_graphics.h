@@ -7,11 +7,11 @@
 typedef struct N_Window N_Window;
 typedef void (*n_graphics_window_size_changed_func)(const N_Window *window);
 
-extern N_Window* n_graphics_window_create(const char *title, n_graphics_window_size_changed_func on_size_changed_func);
-extern void n_graphics_window_destroy(const N_Window *window);
-extern void n_graphics_window_set_client_size(const N_Window *window, U32 size_x, U32 size_y);
-extern U32 n_graphics_window_get_size_x(const N_Window *window);
-extern U32 n_graphics_window_get_size_y(const N_Window *window);
+extern N_Window*n_graphics_window_create(const char *title, n_graphics_window_size_changed_func on_size_changed_func);
+extern void     n_graphics_window_destroy(const N_Window *window);
+extern void     n_graphics_window_set_client_size(const N_Window *window, U32 size_x, U32 size_y);
+extern U32      n_graphics_window_get_size_x(const N_Window *window);
+extern U32      n_graphics_window_get_size_y(const N_Window *window);
 
 extern void n_graphics_initialize(const N_Window *window);
 extern void n_graphics_deinitialize(void);

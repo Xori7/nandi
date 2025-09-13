@@ -403,7 +403,7 @@ static N_GPUBuffer n_gpu_buffer_create(U64 size) {
     allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocateInfo.allocationSize = memoryRequirements.size;
     allocateInfo.memoryTypeIndex = findMemoryType(
-            memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+            memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     VK_CHECK_RESULT(vkAllocateMemory(_gs.device.device, &allocateInfo, NULL, &graphics_buffer.buffer_memory)); // allocate memory on device.
     
@@ -748,9 +748,7 @@ extern void n_graphics_command_buffer_submit(const N_CommandBuffer *command_buff
        Hence, we use a fence here.
        */
 
-    N_DEBUG_MESURE("fences",
-        VK_CHECK_RESULT(vkWaitForFences(_gs.device.device, 1, &fence, VK_TRUE, 100000000000));
-    );
+    VK_CHECK_RESULT(vkWaitForFences(_gs.device.device, 1, &fence, VK_TRUE, 100000000000));
 
     vkDestroyFence(_gs.device.device, fence, NULL);
 }

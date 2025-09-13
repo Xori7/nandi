@@ -35,6 +35,16 @@
 #define n_buffer_size_z(name) name##_size_z
 #define n_buffer_size_w(name) name##_size_w
 
+#define WRITEONLY_BUFFER(name, bind_id) \
+layout(std430, binding = (bind_id) * 2 + 1) buffer name##_size \
+{ \
+    int n_buffer_size_x(name); \
+    int n_buffer_size_y(name); \
+    int n_buffer_size_z(name); \
+    int n_buffer_size_w(name); \
+}; \
+layout(std430, binding = (bind_id) * 2) writeonly restrict buffer name
+
 #define BUFFER(name, bind_id) \
 layout(std430, binding = (bind_id) * 2 + 1) buffer name##_size \
 { \
