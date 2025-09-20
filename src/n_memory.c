@@ -1,4 +1,5 @@
 #include "nandi/n_memory.h"
+#include <assert.h>
 #include <stdlib.h>
 #include <stdint.h>
 
@@ -6,29 +7,24 @@ static inline size_t align_up(size_t value, size_t alignment) {
     return (value + (alignment - 1)) & ~(alignment - 1);
 }
 
-N_Error n_alloc_max_align(N_Allocator *allocator, size_t size, void **out_ptr) {
-    return allocator->alloc(allocator, size, sizeof(intmax_t), out_ptr);
+void* n_alloc_max_align(N_Allocator *allocator, size_t size) {
+    return allocator->alloc(allocator, size, sizeof(intmax_t));
 }
 
-N_Error n_alloc(N_Allocator *allocator, size_t size, size_t alignment, void **out_ptr) {
-    return allocator->alloc(allocator, size, alignment, out_ptr);
+void* n_alloc(N_Allocator *allocator, size_t size, size_t alignment) {
+    return allocator->alloc(allocator, size, alignment);
 }
 
 void n_free(N_Allocator *allocator, void *ptr) {
     allocator->free(allocator, ptr);
 }
 
-static inline N_Error n_default_allocator_alloc(N_Allocator *allocator, size_t size, size_t alignment, void **out_ptr) {
+static inline void* n_default_allocator_alloc(N_Allocator *allocator, size_t size, size_t alignment) {
 #ifdef _WIN32
-    *out_ptr = _aligned_malloc(size, alignment);
+    return _aligned_malloc(size, alignment);
 #else
-    *out_ptr = aligned_alloc(alignment, size);
+    return aligned_alloc(alignment, size);
 #endif
-    if (*out_ptr == NULL) {
-        return N_ERR_OUT_OF_MEMORY;
-    } else {
-        return N_ERR_OK;
-    }
 }
 
 static inline void n_default_allocator_free(N_Allocator *allocator, void *ptr) {
@@ -39,60 +35,61 @@ static inline void n_default_allocator_free(N_Allocator *allocator, void *ptr) {
 #endif
 }
 
-void n_default_allocator_init(N_DefaultAllocator *out_allocator) {
-    out_allocator->allocator = (N_Allocator) {
+extern N_Allocator n_malloc_allocator_create() {
+    return (N_Allocator) {
         .alloc = &n_default_allocator_alloc,
         .free = &n_default_allocator_free,
     };
 }
 
-static inline N_Error n_arena_allocator_alloc(N_Allocator *allocator, size_t size, size_t alignment, void **out_ptr) {
+struct N_ArenaAllocator {
+    N_Allocator allocator;
+    size_t offset;
+    size_t size;
+    U8 buffer[];
+};
+
+static inline void* n_arena_allocator_alloc(N_Allocator *allocator, size_t size, size_t alignment) {
+    assert(allocator != NULL);
     N_ArenaAllocator *arena = (N_ArenaAllocator*)allocator;
-    if (arena->buffer == NULL) {
-        return N_ERR_ALLOCATOR_NOT_INITIALIZED;
-    } 
 
     size_t new_ptr = align_up(arena->offset, alignment);
     size_t new_offset = new_ptr + size;
     if (new_offset > arena->size) {
-        return N_ERR_ARENA_OVERFLOW;
+        assert(FALSE && "TODO(xori): handle arena allocator overflow!");
     } else {
         arena->offset = new_offset;
-        *out_ptr = arena->buffer + new_ptr;
-        return N_ERR_OK;
+        return arena->buffer + new_ptr;
     }
 }
 
 static inline void n_arena_allocator_free(N_Allocator *allocator, void *ptr) { 
+    assert(FALSE && "Cannot free arena allocation!");
 }
 
-N_Error n_arena_allocator_init(size_t size, N_ArenaAllocator *out_arena) {
-    N_DefaultAllocator alloc = {0};
-    n_default_allocator_init(&alloc);
-    void *buffer = NULL;
-    N_Error err = n_alloc_max_align(&alloc.allocator, size, &buffer);
-    if (err != N_ERR_OK) {
-        return err;
+N_ArenaAllocator* n_arena_allocator_create(N_Allocator *allocator, size_t size) {
+    N_ArenaAllocator *arena = n_alloc_max_align(allocator, sizeof(N_ArenaAllocator) + size);
+    if (arena == NULL) {
+        return NULL;
     }
 
-    *out_arena = (N_ArenaAllocator) {
+    *arena = (N_ArenaAllocator) {
         .allocator = {
             .alloc = &n_arena_allocator_alloc,
             .free = &n_arena_allocator_free
         },
-        .buffer = buffer,
         .offset = 0,
-        .size = size
+        .size = size,
     };
-    return N_ERR_OK;
+    return arena;
 }
 
-void n_arena_allocator_deinit(N_ArenaAllocator *arena) {
-    free(arena->buffer);
-    *arena = (N_ArenaAllocator) {0};
+void n_arena_allocator_destroy(N_ArenaAllocator *arena) {
+    free(arena);
 }
 
 void n_arena_allocator_clear(N_ArenaAllocator *arena) {
     arena->offset = 0;
+    //TODO(xori): add memset in order to reset buffer to zero
 }
 

@@ -3,17 +3,18 @@
 
 #include "nandi/n_core.h"
 #include "nandi/n_math.h"
+#include "nandi/n_memory.h"
 
 typedef struct N_Window N_Window;
 typedef void (*n_graphics_window_size_changed_func)(const N_Window *window);
 
-extern N_Window*n_graphics_window_create(const char *title, n_graphics_window_size_changed_func on_size_changed_func);
+extern N_Window*n_graphics_window_create(N_Allocator *allocator, const char *title, n_graphics_window_size_changed_func on_size_changed_func);
 extern void     n_graphics_window_destroy(const N_Window *window);
 extern void     n_graphics_window_set_client_size(const N_Window *window, U32 size_x, U32 size_y);
 extern U32      n_graphics_window_get_size_x(const N_Window *window);
 extern U32      n_graphics_window_get_size_y(const N_Window *window);
 
-extern void n_graphics_initialize(const N_Window *window);
+extern void n_graphics_initialize(void);
 extern void n_graphics_deinitialize(void);
 extern void n_graphics_recreate_swap_chain(const N_Window *window);
 
@@ -50,6 +51,13 @@ typedef struct {
 typedef struct {
     F32 a, r, g, b;
 } N_ARGB_F32;
+
+typedef struct {
+    U32 vertices_count;
+    N_Vec3_F32 *vertices;
+    U32 triangles_count;
+    U32 *triangles;
+} N_Mesh;
 
 #define N_GRAPHICS_CPU 1
 #include "nandi/n_graphics_shader.h"

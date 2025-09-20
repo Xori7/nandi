@@ -258,6 +258,12 @@ extern void n_graphics_recreate_swap_chain(const N_Window *window) {
     if (_gs.initialized == FALSE) {
         return;
     }
+
+    if (_gs.surface == NULL) {
+        // TODO(kkard2): check surface creation
+        _gs.surface = n_graphics_window_create_surface(window, _gs.instance);
+    }
+
     if (_gs.swapchain != NULL) {
         vkDestroySwapchainKHR(_gs.device.device, _gs.swapchain, NULL);
     }
@@ -304,7 +310,7 @@ extern void n_graphics_recreate_swap_chain(const N_Window *window) {
     VK_CHECK_RESULT(vkGetSwapchainImagesKHR(_gs.device.device, _gs.swapchain, &_gs.swapchain_image_count, _gs.swapchain_images));
 }
 
-extern void n_graphics_initialize(const N_Window *window) {
+extern void n_graphics_initialize(void) {
     _gs = (N_GraphicsState){ 0 };
     VkApplicationInfo applicationInfo = {0};
     applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -339,9 +345,7 @@ extern void n_graphics_initialize(const N_Window *window) {
         PFN_vkCreateDebugReportCallbackEXT vk_create_debug_report_callbackEXT = 
             (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(_gs.instance, "vkCreateDebugReportCallbackEXT");
 
-        if (vk_create_debug_report_callbackEXT == NULL) {
-            n_debug_err("Could not load vkCreateDebugReportCallbackEXT");
-        }
+        assert(vk_create_debug_report_callbackEXT != NULL && "Could not load vkCreateDebugReportCallbackEXT");
         VK_CHECK_RESULT(vk_create_debug_report_callbackEXT(_gs.instance, &createInfo, NULL, &_gs.debug_report_callback));
     }
 
@@ -351,11 +355,7 @@ extern void n_graphics_initialize(const N_Window *window) {
     _gs.descriptorPool = n_vk_create_descriptor_pool();
     _gs.command_pool = n_vk_create_command_pool();
 
-    // TODO(kkard2): check surface creation
-    _gs.surface = n_graphics_window_create_surface(window, _gs.instance);
     _gs.initialized = TRUE;
-
-    n_graphics_recreate_swap_chain(window);
 }
 
 typedef struct {

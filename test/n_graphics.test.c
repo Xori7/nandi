@@ -55,12 +55,14 @@ void on_window_size_changed(const N_Window *window) {
 }
 
 void run(void) {
-    N_Window *window = n_graphics_window_create("nandi", &on_window_size_changed);
+    N_Allocator alloc = n_malloc_allocator_create();
+    N_Window *window = n_graphics_window_create(&alloc, "nandi", &on_window_size_changed);
     n_graphics_window_set_client_size(window, WIDTH, HEIGHT);
 
-    n_graphics_initialize(window);
+    n_graphics_initialize();
+    n_graphics_recreate_swap_chain(window);
 
-    const I32 VERTEX_COUNT = 50;
+    const I32 VERTEX_COUNT = 5;
     const I32 INDEX_COUNT = VERTEX_COUNT * VERTEX_COUNT * 6;
     const N_GraphicsBuffer *frame_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = WIDTH, .y = HEIGHT}, sizeof(N_ARGB_U8));
     const N_GraphicsBuffer *vertex_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = VERTEX_COUNT * VERTEX_COUNT * 4}, sizeof(N_Vec2_F32));
@@ -96,7 +98,7 @@ void run(void) {
     n_graphics_buffer_unmap(color_buffer);
     n_graphics_buffer_unmap(index_buffer);
 
-    N_Shader *shader = n_graphics_shader_create("./shaders/shader.comp");
+    N_Shader *shader = n_graphics_shader_create("./include/nandi/shaders/shader.comp");
     n_graphics_shader_set_buffer(shader, frame_buffer, 0);
     n_graphics_shader_set_buffer(shader, vertex_buffer, 1);
     n_graphics_shader_set_buffer(shader, color_buffer, 2);
@@ -113,6 +115,7 @@ void run(void) {
     Bool running = TRUE;
     while (running) {
         N_DEBUG_MESURE("frame",
+
             N_DEBUG_MESURE("input",
             n_input_update();
             if (n_input_key_down(NKEYCODE_P)) {
@@ -147,8 +150,6 @@ void run(void) {
 
     n_graphics_command_buffer_destroy(command_buffer);
     n_graphics_command_buffer_destroy(present_command_buffer);
-
-    saveRenderedImage(frame_buffer);
 
     n_graphics_shader_destroy(shader);
     n_graphics_buffer_destroy(vertex_buffer);

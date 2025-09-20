@@ -6,17 +6,19 @@
 #include <stdio.h>
 #include <time.h>
 
+static FILE *fstream;
+
 static N_Error vprint_to_file_and_console(FILE *fstream, const char *fmt, va_list args) {
     va_list args_copy;
     va_copy(args_copy, args);
 
     if (vprintf(fmt, args) < 0) {
         va_end(args_copy);
-        return N_ERR_PRINTF_FAIL;
+        return N_ERR_IO_PRINTF_FAIL;
     }
     if (vfprintf(fstream, fmt, args_copy) < 0) {
         va_end(args_copy);
-        return N_ERR_PRINTF_FAIL;
+        return N_ERR_IO_PRINTF_FAIL;
     }
     va_end(args_copy);
     return N_ERR_OK;
@@ -31,9 +33,11 @@ static N_Error print_to_file_and_console(FILE *fstream, const char *fmt, ...) {
 }
 
 static N_Error log_to_file(const char *prefix, const char *fmt, va_list args) {
-    FILE *fstream = fopen(N_DEBUG_FILE, "a");
     if (fstream == NULL) {
-        return N_ERR_FILE_OPEN;
+        fstream = fopen(N_DEBUG_FILE, "a");
+    }
+    if (fstream == NULL) {
+        return N_ERR_IO_FILE_OPEN;
     }
 
     if (prefix != NULL) {
@@ -43,7 +47,7 @@ static N_Error log_to_file(const char *prefix, const char *fmt, va_list args) {
 
         char time_str[128];
         if (strftime(time_str, sizeof(time_str), "%H:%M:%S", local_time) <= 0) {
-            return N_ERR_SPRFTIME_FAIL;
+            return N_ERR_IO_SPRFTIME_FAIL;
         }
 
         N_OK(print_to_file_and_console(fstream, "[%s] %s", time_str, prefix));
@@ -54,9 +58,9 @@ static N_Error log_to_file(const char *prefix, const char *fmt, va_list args) {
     N_OK(vprint_to_file_and_console(fstream, fmt, args));
     N_OK(print_to_file_and_console(fstream, "%c", '\n'));
 
-    if (fclose(fstream) != 0) {
-        return N_ERR_FILE_CLOSE;
-    }
+    //if (fclose(fstream) != 0) {
+        //return N_ERR_FILE_CLOSE;
+    //}
 
     return N_ERR_OK;
 }

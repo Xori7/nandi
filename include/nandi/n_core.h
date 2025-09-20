@@ -40,14 +40,15 @@ typedef _Atomic(Bool) AtomicBool;
 
 #define ERROR_LIST \
     X_ERR(N_ERR_OK                          , 0) \
-    X_ERR(N_ERR_OUT_OF_MEMORY               , 1) \
-    X_ERR(N_ERR_ALLOCATOR_NOT_INITIALIZED   , 2) \
-    X_ERR(N_ERR_ARENA_OVERFLOW              , 3) \
-    X_ERR(N_ERR_FILE_OPEN                   , 1000) \
-    X_ERR(N_ERR_FILE_CLOSE                  , 1004) \
-    X_ERR(N_ERR_FILE_WRITE                  , 1005) \
-    X_ERR(N_ERR_PRINTF_FAIL                 , 1006) \
-    X_ERR(N_ERR_SPRFTIME_FAIL               , 1007) \
+    X_ERR(N_ERR_MEM_OUT_OF_MEMORY               , 1) \
+    X_ERR(N_ERR_MEM_ALLOCATOR_NOT_INITIALIZED   , 2) \
+    X_ERR(N_ERR_MEM_ARENA_OVERFLOW              , 3) \
+    X_ERR(N_ERR_IO_FILE_OPEN                    , 1024) \
+    X_ERR(N_ERR_IO_FILE_CLOSE                   , 1025) \
+    X_ERR(N_ERR_IO_FILE_WRITE                   , 1026) \
+    X_ERR(N_ERR_IO_PRINTF_FAIL                  , 1027) \
+    X_ERR(N_ERR_IO_SPRFTIME_FAIL                , 1028) \
+    X_ERR(N_ERR_GRAPHICS_VULKAN_ERROR           , 2048) \
 
 typedef enum {
     #define X_ERR(name, code) name = code,
