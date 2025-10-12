@@ -36,28 +36,13 @@ extern void         n_graphics_shader_set_buffer(N_Shader *shader, const N_Graph
 
 typedef struct N_CommandBuffer N_CommandBuffer;
 extern const N_CommandBuffer*  n_graphics_command_buffer_create(void);
-extern void n_graphics_command_buffer_destroy(const N_CommandBuffer *command_buffer);
-extern void n_graphics_command_buffer_begin(const N_CommandBuffer *command_buffer);
-extern void n_graphics_command_buffer_end(const N_CommandBuffer *command_buffer);
-extern void n_graphics_command_buffer_cmd_dispatch(const N_CommandBuffer *command_buffer, const N_Shader *shader, U32 work_g_x, U32 work_g_y, U32 work_g_z);
-extern void n_graphics_command_buffer_present(const N_CommandBuffer *command_buffer, const N_GraphicsBuffer *frame_buffer);
-extern void n_graphics_command_buffer_submit(const N_CommandBuffer *command_buffer);
-extern void n_graphics_command_buffer_reset(const N_CommandBuffer *command_buffer);
-
-typedef struct {
-    U8 a, r, g, b;
-} N_ARGB_U8;
-
-typedef struct {
-    F32 a, r, g, b;
-} N_ARGB_F32;
-
-typedef struct {
-    U32 vertices_count;
-    N_Vec3_F32 *vertices;
-    U32 triangles_count;
-    U32 *triangles;
-} N_Mesh;
+extern void                    n_graphics_command_buffer_destroy(const N_CommandBuffer *command_buffer);
+extern void                    n_graphics_command_buffer_begin(const N_CommandBuffer *command_buffer);
+extern void                    n_graphics_command_buffer_end(const N_CommandBuffer *command_buffer);
+extern void                    n_graphics_command_buffer_cmd_dispatch(const N_CommandBuffer *command_buffer, const N_Shader *shader, U32 work_g_x, U32 work_g_y, U32 work_g_z);
+extern void                    n_graphics_command_buffer_present(const N_CommandBuffer *command_buffer, const N_GraphicsBuffer *frame_buffer);
+extern void                    n_graphics_command_buffer_submit(const N_CommandBuffer *command_buffer);
+extern void                    n_graphics_command_buffer_reset(const N_CommandBuffer *command_buffer);
 
 #define N_GRAPHICS_CPU 1
 #include "nandi/n_graphics_shader.h"

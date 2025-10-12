@@ -26,5 +26,21 @@ typedef struct {
     I32 x, y, z, w;
 } N_Vec4_I32;
 
+typedef union {
+    struct {
+        N_Vec4_F32 columns[4];
+    };
+    struct {
+        F32 elements[4][4];
+    };
+} N_Matrix4x4;
+
+typedef struct {
+    U8 a, r, g, b;
+} N_ARGB_U8;
+
+typedef struct {
+    F32 a, r, g, b;
+} N_ARGB_F32;
 
 #endif // !N_MATH_H

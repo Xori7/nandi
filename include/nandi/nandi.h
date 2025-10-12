@@ -7,5 +7,6 @@
 #include "n_string.h"
 #include "n_test.h"
 #include "n_graphics.h"
+#include "n_mesh.h"
 #include "n_input.h"
 #endif //NANDI_H
