@@ -5,7 +5,7 @@
 #include "nandi/shaders/rasterizer.comp"
 
 vec4 frag(vec4 uv) {
-    return vec4(0, 0, uv.x, 1);
+    return vec4(uv.x, uv.y, uv.z, 1);
 }
 
 // vim: set filetype=c :

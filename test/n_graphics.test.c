@@ -38,35 +38,26 @@ void run(void) {
     const I32 VERTEX_COUNT = 2;
     const I32 INDEX_COUNT = VERTEX_COUNT * VERTEX_COUNT * 6;
     const N_GraphicsBuffer *frame_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = WIDTH, .y = HEIGHT}, sizeof(N_ARGB_U8));
-    const N_GraphicsBuffer *vertex_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = VERTEX_COUNT * VERTEX_COUNT * 4}, sizeof(N_Vec2_F32));
+    const N_GraphicsBuffer *vertex_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = VERTEX_COUNT * VERTEX_COUNT}, sizeof(N_Vec2_F32));
     const N_GraphicsBuffer *color_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = VERTEX_COUNT * VERTEX_COUNT}, sizeof(N_Vec4_F32));
     const N_GraphicsBuffer *index_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = INDEX_COUNT}, sizeof(U32));
 
     N_Vec2_F32 *vertices = n_graphics_buffer_map(vertex_buffer);
     N_Vec4_F32 *colors = n_graphics_buffer_map(color_buffer);
     U32 *indices = n_graphics_buffer_map(index_buffer);
-    U32 i = 0;
-    for (U32 x = 0; x < VERTEX_COUNT; x++) {
-        for (U32 y = 0; y < VERTEX_COUNT; y++) {
-            U32 vid = y * VERTEX_COUNT + x;
-            vertices[vid] = (N_Vec2_F32) {
-                .x = x / ((F32)VERTEX_COUNT - 1),
-                .y = y / ((F32)VERTEX_COUNT - 1),
-            };
-            colors[vid] = (N_Vec4_F32) {
-                .x = x % 2,
-                .y = y % 2,
-            };
-            if (x < VERTEX_COUNT - 1 && y < VERTEX_COUNT - 1) {
-                indices[i++] = vid;
-                indices[i++] = vid + VERTEX_COUNT;
-                indices[i++] = vid + VERTEX_COUNT + 1;
-                indices[i++] = vid;
-                indices[i++] = vid + VERTEX_COUNT + 1;
-                indices[i++] = vid + 1;
-            }
-        }
-    }
+
+    vertices[0] = (N_Vec2_F32) {.x = 0.1f, .y = 0.1f},
+    vertices[1] = (N_Vec2_F32) {.x = 0.75f, .y = 0},
+    vertices[2] = (N_Vec2_F32) {.x = 0, .y = 0.5f},
+
+    colors[0] = (N_Vec4_F32) {0, 0, 1, 0},
+    colors[1] = (N_Vec4_F32) {0, 1, 0, 0},
+    colors[2] = (N_Vec4_F32) {1, 0, 0, 0},
+
+    indices[0] = 0;
+    indices[1] = 1;
+    indices[2] = 2;
+
     n_graphics_buffer_unmap(vertex_buffer);
     n_graphics_buffer_unmap(color_buffer);
     n_graphics_buffer_unmap(index_buffer);
@@ -107,12 +98,13 @@ void run(void) {
                     frame_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = width, .y = height}, sizeof(N_ARGB_U8));
                     n_graphics_shader_set_buffer(shader, frame_buffer, 0);
 
-                    n_graphics_command_buffer_reset(command_buffer);
-                    n_graphics_command_buffer_begin(command_buffer);
-                    n_graphics_command_buffer_cmd_dispatch(command_buffer, shader, (U32)ceil(INDEX_COUNT / (float)(WORKGROUP_SIZE)), 1, 1);
-                    n_graphics_command_buffer_end(command_buffer);
                 );
             }
+
+            n_graphics_command_buffer_reset(command_buffer);
+            n_graphics_command_buffer_begin(command_buffer);
+            n_graphics_command_buffer_cmd_dispatch(command_buffer, shader, (U32)ceil(INDEX_COUNT / (float)(WORKGROUP_SIZE)), 1, 1);
+            n_graphics_command_buffer_end(command_buffer);
 
             n_graphics_command_buffer_submit(command_buffer);
 

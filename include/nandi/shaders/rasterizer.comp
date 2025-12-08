@@ -35,7 +35,7 @@ vec3 PointInTriangle (N_Vec2_F32 p, N_Vec2_F32 p0, N_Vec2_F32 p1, N_Vec2_F32 p2)
     float t = 1.0 / (2*A)*(p0.x*p1.y - p0.y*p1.x + (p0.y - p1.y)*p.x + (p1.x - p0.x)*p.y);
     float r = 1 - s - t;
     
-    return vec3(s, t, r);
+    return vec3(t, r, s);
 }
 
 void compute(int x, int y) {
@@ -49,7 +49,6 @@ void main() {
     int width = n_buffer_size_x(frame_buffer);
     int height = n_buffer_size_y(frame_buffer);
     int id = int(gl_GlobalInvocationID.x) * 3;
-    const int CHUNK_SIZE = 1;
     if (id >= index_buffer_size_x) {
         return;
     }
@@ -70,15 +69,15 @@ void main() {
     tmax.x = min(tmax.x, width - 1);
     tmax.y = min(tmax.y, height - 1);
 
-    vec4 c0 = colors[indices[id]] * (id % 4);
-    vec4 c1 = colors[indices[id + 1]] * (id % 4);
+    vec4 c0 = colors[indices[id]];
+    vec4 c1 = colors[indices[id + 1]];
     vec4 c2 = colors[indices[id + 2]];
 
     for (int y = int(tmin.y) + int(gl_GlobalInvocationID.y); y < tmax.y; y+=WORKGROUP_SIZE) {
         for (int x = int(tmin.x); x < tmax.x; x++) {
             vec3 baricentric = PointInTriangle(vec2(x, y), v0, v1, v2);//vertices[indices[i]], vertices[indices[i + 1]], vertices[indices[i + 2]])) {
             if (baricentric.x >= 0 && baricentric.y >= 0 && baricentric.z >= 0) {
-                vec4 color = c0 * baricentric.z + c1 * baricentric.x + c2 * baricentric.y;
+                vec4 color = c0 * baricentric.x + c1 * baricentric.y + c2 * baricentric.z;
                 imageData[width * y + x] = packUnorm4x8(frag(color).bgra);
             }
         }
