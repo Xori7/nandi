@@ -1,6 +1,10 @@
 #if !N_GRAPHICS_SHADER_H
 #define N_GRAPHICS_SHADER_H 1
 
+struct N_ShaderGlobal{
+    float time;
+};
+
 #if !N_GRAPHICS_CPU
 #define NBool bool
 #define U32 uint
@@ -58,7 +62,9 @@ layout(std430, binding = (bind_id) * 2) buffer name
 #else
 
 typedef N_Vec4_I32 N_GraphicsBufferLength;
+typedef struct N_ShaderGlobal N_ShaderGlobal;
 
 #endif
+
 
 #endif // !N_GRAPHICS_SHADER_H

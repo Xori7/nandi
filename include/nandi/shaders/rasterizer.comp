@@ -1,8 +1,7 @@
 #include "nandi/n_graphics_shader.h"
 
-layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE, local_size_z = 1) in;
 
-struct Pixel{
+struct Pixel {
     uint value;
 };
 
@@ -11,16 +10,22 @@ WRITEONLY_BUFFER(frame_buffer, 0) {
 };
 
 BUFFER(vertex_buffer, 1) {
-    N_Vec2_F32 vertices[];
+    Vert vertices[];
 };
 
-BUFFER(color_buffer, 2) {
-    N_Vec4_F32 colors[];
+BUFFER(global_buffer, 2) {
+    N_ShaderGlobal global;
 };
 
 BUFFER(index_buffer, 3) {
     int indices[];
 };
+
+layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE, local_size_z = 1) in;
+
+N_ShaderGlobal get_global() {
+    return global;
+}
 
 float linear_to_srgb(float linear) {
     if (linear <= 0.0031308)
@@ -52,13 +57,13 @@ void main() {
     if (id >= index_buffer_size_x) {
         return;
     }
-    vec2 v0 = vertices[indices[id]];
+    vec2 v0 = vertices[indices[id]].position;
     v0.x = int(v0.x * width);
     v0.y = int(v0.y * height);
-    vec2 v1 = vertices[indices[id + 1]];
+    vec2 v1 = vertices[indices[id + 1]].position;
     v1.x = int(v1.x * width);
     v1.y = int(v1.y * height);
-    vec2 v2 = vertices[indices[id + 2]];
+    vec2 v2 = vertices[indices[id + 2]].position;
     v2.x = int(v2.x * width);
     v2.y = int(v2.y * height);
 
@@ -69,16 +74,15 @@ void main() {
     tmax.x = min(tmax.x, width - 1);
     tmax.y = min(tmax.y, height - 1);
 
-    vec4 c0 = colors[indices[id]];
-    vec4 c1 = colors[indices[id + 1]];
-    vec4 c2 = colors[indices[id + 2]];
+    Frag c0 = vert(vertices[indices[id]]);
+    Frag c1 = vert(vertices[indices[id + 1]]);
+    Frag c2 = vert(vertices[indices[id + 2]]);
 
     for (int y = int(tmin.y) + int(gl_GlobalInvocationID.y); y < tmax.y; y+=WORKGROUP_SIZE) {
         for (int x = int(tmin.x); x < tmax.x; x++) {
             vec3 baricentric = PointInTriangle(vec2(x, y), v0, v1, v2);//vertices[indices[i]], vertices[indices[i + 1]], vertices[indices[i + 2]])) {
             if (baricentric.x >= 0 && baricentric.y >= 0 && baricentric.z >= 0) {
-                vec4 color = c0 * baricentric.x + c1 * baricentric.y + c2 * baricentric.z;
-                imageData[width * y + x] = packUnorm4x8(frag(color).bgra);
+                imageData[width * y + x] = packUnorm4x8(frag(baricentric, c0, c1, c2).bgra);
             }
         }
     }

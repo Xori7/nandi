@@ -2,10 +2,10 @@
 #define WORKGROUP_SIZE 32
 #extension GL_GOOGLE_include_directive : require
 #include "nandi/n_graphics_shader.h"
-#include "nandi/shaders/rasterizer.comp"
 
-vec4 frag(vec4 uv) {
-    return vec4(uv.x, uv.y, uv.z, 1);
-}
+N_ShaderGlobal get_global();
+
+#include "nandi/shaders/test.comp"
+#include "nandi/shaders/rasterizer.comp"
 
 // vim: set filetype=c :

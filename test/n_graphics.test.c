@@ -21,6 +21,12 @@ typedef struct {
     N_Circle circles[];
 } N_CircleBuffer;
 
+typedef struct {
+    N_ARGB_F32 color;
+    N_Vec2 position;
+    float pad[2];
+} Vert;
+
 #include <math.h>
 
 const int WIDTH = 1080; // Size of rendered mandelbrot set.
@@ -38,34 +44,28 @@ void run(void) {
     const I32 VERTEX_COUNT = 2;
     const I32 INDEX_COUNT = VERTEX_COUNT * VERTEX_COUNT * 6;
     const N_GraphicsBuffer *frame_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = WIDTH, .y = HEIGHT}, sizeof(N_ARGB_U8));
-    const N_GraphicsBuffer *vertex_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = VERTEX_COUNT * VERTEX_COUNT}, sizeof(N_Vec2_F32));
-    const N_GraphicsBuffer *color_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = VERTEX_COUNT * VERTEX_COUNT}, sizeof(N_Vec4_F32));
+    const N_GraphicsBuffer *vertex_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = VERTEX_COUNT * VERTEX_COUNT}, sizeof(Vert));
+    const N_GraphicsBuffer *global_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = 1}, sizeof(N_ShaderGlobal));
     const N_GraphicsBuffer *index_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = INDEX_COUNT}, sizeof(U32));
 
-    N_Vec2_F32 *vertices = n_graphics_buffer_map(vertex_buffer);
-    N_Vec4_F32 *colors = n_graphics_buffer_map(color_buffer);
+    Vert *vertices = n_graphics_buffer_map(vertex_buffer);
     U32 *indices = n_graphics_buffer_map(index_buffer);
 
-    vertices[0] = (N_Vec2_F32) {.x = 0.1f, .y = 0.1f},
-    vertices[1] = (N_Vec2_F32) {.x = 0.75f, .y = 0},
-    vertices[2] = (N_Vec2_F32) {.x = 0, .y = 0.5f},
-
-    colors[0] = (N_Vec4_F32) {0, 0, 1, 0},
-    colors[1] = (N_Vec4_F32) {0, 1, 0, 0},
-    colors[2] = (N_Vec4_F32) {1, 0, 0, 0},
+    vertices[0] = (Vert) { .position = {.x = 0.1f,  .y = 0.1f}, .color = (N_ARGB_F32) {0, 0, 1, 0}},
+    vertices[1] = (Vert) { .position = {.x = 0.75f, .y = 0}, .color = (N_ARGB_F32) {0, 1, 0, 0}},
+    vertices[2] = (Vert) { .position = {.x = 0,     .y = 0.5f}, .color = (N_ARGB_F32) {1, 0, 0, 0}},
 
     indices[0] = 0;
     indices[1] = 1;
     indices[2] = 2;
 
     n_graphics_buffer_unmap(vertex_buffer);
-    n_graphics_buffer_unmap(color_buffer);
     n_graphics_buffer_unmap(index_buffer);
 
     N_Shader *shader = n_graphics_shader_create("./include/nandi/shaders/shader.comp");
     n_graphics_shader_set_buffer(shader, frame_buffer, 0);
     n_graphics_shader_set_buffer(shader, vertex_buffer, 1);
-    n_graphics_shader_set_buffer(shader, color_buffer, 2);
+    n_graphics_shader_set_buffer(shader, global_buffer, 2);
     n_graphics_shader_set_buffer(shader, index_buffer, 3);
 
     const N_CommandBuffer *command_buffer = n_graphics_command_buffer_create();
@@ -101,6 +101,10 @@ void run(void) {
                 );
             }
 
+            N_ShaderGlobal *global = n_graphics_buffer_map(global_buffer);
+            global->time = (F32)n_debug_time();
+            n_graphics_buffer_unmap(global_buffer);
+
             n_graphics_command_buffer_reset(command_buffer);
             n_graphics_command_buffer_begin(command_buffer);
             n_graphics_command_buffer_cmd_dispatch(command_buffer, shader, (U32)ceil(INDEX_COUNT / (float)(WORKGROUP_SIZE)), 1, 1);
@@ -121,7 +125,7 @@ void run(void) {
     n_graphics_shader_destroy(shader);
     n_graphics_buffer_destroy(vertex_buffer);
     n_graphics_buffer_destroy(frame_buffer);
-    n_graphics_buffer_destroy(color_buffer);
+    n_graphics_buffer_destroy(global_buffer);
     n_graphics_buffer_destroy(index_buffer);
 
     n_graphics_deinitialize();
