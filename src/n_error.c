@@ -1,20 +1,25 @@
 #include "nandi/n_core.h"
+#include "nandi/n_threading.h"
+#include <assert.h>
+#include <stdarg.h>
 #include <stdio.h>
-#include <stdlib.h>
 
-extern const char *n_err_to_str(N_Error error) {
-    switch (error) {
-        #define X_ERR(name, code) case name: return #name;
-        ERROR_LIST
-        #undef X_ERR
-        default: return "ERROR_UNKNOWN";
-    }
+static char error[N_MAX_THREAD_COUNT][10240]; //NOTE(xori): 10KB per error message for every thread
+                                              
+extern N_Result n_error_set(const char *fmt, ...) {
+    U32 thread_id = n_threading_current_thread_id();
+    va_list args;
+    va_start(args, fmt);
+    assert(snprintf(error[thread_id], ARRAY_SIZE(error[thread_id]), fmt, args) >= 0 && "failed to set error");
+#if N_LOG_ERRORS
+    n_debug_err(fmt, fmt, args);
+#endif
+    va_end(args);
+    return N_ERR;
 }
 
-extern void n_unwrap(N_Error error, const char *file, I32 line) {
-    N_Error _err = error;
-    if (_err != N_ERR_OK)  {
-        printf("n_unwrap panic with error: %s at <%s>:%d\n", n_err_to_str(_err), file, line);
-        exit((I32)_err);
-    }
+extern const char* n_error_get(void) {
+    U32 thread_id = n_threading_current_thread_id();
+    return error[thread_id];
 }
+

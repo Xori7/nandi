@@ -1,5 +1,6 @@
 #if _WIN32
 
+#include "platform/n_platform_graphics_window.h"
 #include "nandi/n_input.h"
 #include <windows.h>
 
@@ -51,7 +52,8 @@ void process_input_message(N_InputMessageType type, U32 data) {
     }
 }
 
-extern void n_input_update() {
+extern void n_input_update(const N_Window *window) {
+    n_graphics_window_size_changed_set((N_Window*)window, FALSE);
     MSG msg = {0};
     while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
         switch(msg.message){

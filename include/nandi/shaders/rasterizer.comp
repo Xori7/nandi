@@ -1,6 +1,6 @@
 #include "nandi/n_graphics_shader.h"
 
-layout (local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1 ) in;
+layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE, local_size_z = 1) in;
 
 struct Pixel{
     uint value;
@@ -74,8 +74,8 @@ void main() {
     vec4 c1 = colors[indices[id + 1]] * (id % 4);
     vec4 c2 = colors[indices[id + 2]];
 
-    for (int x = int(tmin.x); x < tmax.x; x++) {
-        for (int y = int(tmin.y); y < tmax.y; y++) {
+    for (int y = int(tmin.y) + int(gl_GlobalInvocationID.y); y < tmax.y; y+=WORKGROUP_SIZE) {
+        for (int x = int(tmin.x); x < tmax.x; x++) {
             vec3 baricentric = PointInTriangle(vec2(x, y), v0, v1, v2);//vertices[indices[i]], vertices[indices[i + 1]], vertices[indices[i + 2]])) {
             if (baricentric.x >= 0 && baricentric.y >= 0 && baricentric.z >= 0) {
                 vec4 color = c0 * baricentric.z + c1 * baricentric.x + c2 * baricentric.y;

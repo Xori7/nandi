@@ -15,9 +15,6 @@ const Bool enableValidationLayers = FALSE;
 const Bool enableValidationLayers = TRUE;
 #endif
 
-// The pixels of the rendered mandelbrot set are in this format:
-
-
 typedef struct {
     U32 enabled_layer_count;
     const char* enabled_layers[256];

@@ -1,43 +1,47 @@
 // NOTE(kkard2): idk man
+#include <assert.h>
 #define _POSIX_C_SOURCE 199309L
 
 #include "nandi/n_core.h"
+#include "nandi/n_threading.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <time.h>
 
 static FILE *fstream;
 
-static N_Error vprint_to_file_and_console(FILE *fstream, const char *fmt, va_list args) {
+static N_Result vprint_to_file_and_console(FILE *fstream, const char *fmt, va_list args) {
     va_list args_copy;
     va_copy(args_copy, args);
 
     if (vprintf(fmt, args) < 0) {
         va_end(args_copy);
-        return N_ERR_IO_PRINTF_FAIL;
+        return N_ERR;
     }
     if (vfprintf(fstream, fmt, args_copy) < 0) {
         va_end(args_copy);
-        return N_ERR_IO_PRINTF_FAIL;
+        return N_ERR;
     }
+
     va_end(args_copy);
-    return N_ERR_OK;
+    return N_OK;
 }
 
-static N_Error print_to_file_and_console(FILE *fstream, const char *fmt, ...) {
+static N_Result print_to_file_and_console(FILE *fstream, const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    N_Error err = vprint_to_file_and_console(fstream, fmt, args);
+    N_Result result = vprint_to_file_and_console(fstream, fmt, args);
     va_end(args);
-    return err;
+    return result;
 }
 
-static N_Error log_to_file(const char *prefix, const char *fmt, va_list args) {
+static N_Result log_to_file(const char *prefix, const char *fmt, va_list args) {
+    // TODO(xori): improve that, with some init func or opening file every time to not produce side effects
     if (fstream == NULL) {
         fstream = fopen(N_DEBUG_FILE, "a");
-    }
-    if (fstream == NULL) {
-        return N_ERR_IO_FILE_OPEN;
+        if (fstream == NULL) {
+            return N_ERR;
+        }
     }
 
     if (prefix != NULL) {
@@ -47,62 +51,70 @@ static N_Error log_to_file(const char *prefix, const char *fmt, va_list args) {
 
         char time_str[128];
         if (strftime(time_str, sizeof(time_str), "%H:%M:%S", local_time) <= 0) {
-            return N_ERR_IO_SPRFTIME_FAIL;
+            return N_ERR;
         }
 
-        N_OK(print_to_file_and_console(fstream, "[%s] %s", time_str, prefix));
+        if (print_to_file_and_console(fstream, "[%s] %s", time_str, prefix) != N_OK) {
+            return N_ERR;
+        }
     } else {
-        print_to_file_and_console(fstream, "\t");
+        if (print_to_file_and_console(fstream, "\t") != N_OK) {
+            return N_ERR;
+        }
     }
 
-    N_OK(vprint_to_file_and_console(fstream, fmt, args));
-    N_OK(print_to_file_and_console(fstream, "%c", '\n'));
+    if (vprint_to_file_and_console(fstream, fmt, args) != N_OK) {
+        return N_ERR;
+    }
+    if (print_to_file_and_console(fstream, "%c", '\n') != N_OK) {
+        return N_ERR;
+    }
 
     //if (fclose(fstream) != 0) {
         //return N_ERR_FILE_CLOSE;
     //}
 
-    return N_ERR_OK;
+    return N_OK;
 }
 
 void n_debug_log(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    N_UNWRAP(log_to_file("LOG:  ", fmt, args));
+    assert(log_to_file("LOG:  ", fmt, args) == N_OK);
     va_end(args);
 }
 
 void n_debug_warn(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    N_UNWRAP(log_to_file("WARN: ", fmt, args));
+    assert(log_to_file("WARN: ", fmt, args) == N_OK);
     va_end(args);
 }
 
 void n_debug_err(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    N_UNWRAP(log_to_file("ERR:  ", fmt, args));
+    assert(log_to_file("ERR:  ", fmt, args) == N_OK);
     va_end(args);
 }
 
 void n_debug_info(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    N_UNWRAP(log_to_file("INFO: ", fmt, args));
+    assert(log_to_file("INFO: ", fmt, args) == N_OK);
     va_end(args);
 }
 extern void n_debug_test(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    N_UNWRAP(log_to_file("TEST: ", fmt, args));
+    assert(log_to_file("TEST: ", fmt, args) == N_OK);
     va_end(args);
 }
 
 extern void n_debug_print(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    N_UNWRAP(log_to_file(NULL, fmt, args));
+    assert(log_to_file(NULL, fmt, args) == N_OK);
     va_end(args);
 }
 

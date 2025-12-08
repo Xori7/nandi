@@ -2,6 +2,7 @@
 #define N_INPUT_H 1
 
 #include "nandi/n_core.h"
+#include "nandi/n_graphics.h"
 
 typedef enum {
     NKEYCODE_LeftMouseBtn = 0x01, //Left mouse button
@@ -262,7 +263,7 @@ typedef enum {
     NKEYCODE_Packet = 0xE7, //IDK man try to google it
 } N_KeyCode;
 
-extern void n_input_update(void);
+extern void n_input_update(const N_Window *window);
 extern Bool n_input_key(N_KeyCode keyCode);
 extern Bool n_input_key_down(N_KeyCode keyCode);
 extern Bool n_input_key_up(N_KeyCode keyCode);

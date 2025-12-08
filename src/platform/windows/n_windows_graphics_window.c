@@ -9,7 +9,7 @@ struct N_Window {
     HWND handle;
     const char *title;
     U32 size_x, size_y;
-    n_graphics_window_size_changed_func on_size_changed_func;
+    Bool size_changed;
     N_Allocator *allocator;
 };
 
@@ -18,8 +18,7 @@ void update_client_rect(N_Window *window) {
     GetClientRect((HWND)window->handle, &rect);
     window->size_x = rect.right - rect.left;
     window->size_y = rect.bottom - rect.top;
-    if (window->on_size_changed_func != NULL)
-        (window->on_size_changed_func)(window);
+    window->size_changed = TRUE;
 }
 
 LRESULT WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
@@ -42,6 +41,14 @@ VkSurfaceKHR n_graphics_window_create_surface(const N_Window *window, VkInstance
     return result;
 }
 
+void n_graphics_window_size_changed_set(N_Window *window, Bool value) {
+    window->size_changed = value;
+}
+
+extern Bool n_graphics_window_size_changed(const N_Window *window) {
+    return window->size_changed;
+}
+
 extern U32 n_graphics_window_get_size_x(const N_Window *window) {
     return window->size_x;
 }
@@ -49,7 +56,7 @@ extern U32 n_graphics_window_get_size_y(const N_Window *window) {
     return window->size_y;
 }
 
-extern N_Window* n_graphics_window_create(N_Allocator *allocator, const char *title, n_graphics_window_size_changed_func on_size_changed_func) {
+extern N_Window* n_graphics_window_create(N_Allocator *allocator, const char *title) {
     WNDCLASS windowClass = {
             .lpszClassName = title,
             .hInstance = GetModuleHandle(NULL),
@@ -60,7 +67,7 @@ extern N_Window* n_graphics_window_create(N_Allocator *allocator, const char *ti
     N_Window *window = n_alloc_max_align(allocator, sizeof *window);
     window->handle = windowHandle;
     window->title = title;
-    window->on_size_changed_func = on_size_changed_func;
+    window->size_changed = FALSE;
     window->allocator = allocator;
     update_client_rect(window);
 

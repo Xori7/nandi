@@ -1,6 +1,8 @@
 #if !N_CORE_H
 #define N_CORE_H 1
 
+#define N_LOG_ERRORS 1
+
 // # TYPES #
 #include <stdint.h>
 
@@ -21,6 +23,11 @@ typedef U8          Bool;
 #define TRUE ((U8)1)
 #define FALSE ((U8)0)
 
+typedef enum {
+    N_OK = 1,
+    N_ERR = 0
+} N_Result;
+
 typedef _Atomic(I8)   AtomicI8;
 typedef _Atomic(I16)  AtomicI16;
 typedef _Atomic(I32)  AtomicI32;
@@ -36,36 +43,15 @@ typedef _Atomic(F64)  AtomicF64;
 
 typedef _Atomic(Bool) AtomicBool;
 
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+
 // # ERROR #
 
-#define ERROR_LIST \
-    X_ERR(N_ERR_OK                          , 0) \
-    X_ERR(N_ERR_MEM_OUT_OF_MEMORY               , 1) \
-    X_ERR(N_ERR_MEM_ALLOCATOR_NOT_INITIALIZED   , 2) \
-    X_ERR(N_ERR_MEM_ARENA_OVERFLOW              , 3) \
-    X_ERR(N_ERR_IO_FILE_OPEN                    , 1024) \
-    X_ERR(N_ERR_IO_FILE_CLOSE                   , 1025) \
-    X_ERR(N_ERR_IO_FILE_WRITE                   , 1026) \
-    X_ERR(N_ERR_IO_PRINTF_FAIL                  , 1027) \
-    X_ERR(N_ERR_IO_SPRFTIME_FAIL                , 1028) \
-    X_ERR(N_ERR_GRAPHICS_VULKAN_ERROR           , 2048) \
+// Returns: always N_ERR, which can be used to return with error_set, e.g. return n_error_set("error message");
+extern N_Result     n_error_set(const char *fmt, ...);
 
-typedef enum {
-    #define X_ERR(name, code) name = code,
-    ERROR_LIST
-    #undef X_ERR
-} N_Error;
-
-// returns error name string
-extern const char *n_err_to_str(N_Error error);
-extern void n_unwrap(N_Error error, const char *file, I32 line);
-
-#define N_OK(call) do {                     \
-    N_Error result = (call);                \
-    if (result != N_ERR_OK) return result;  \
-} while (0)
-
-#define N_UNWRAP(_call) n_unwrap((_call), __FILE__, __LINE__)
+// Returns: last error on the current thread set by n_error_set() function
+extern const char*  n_error_get(void);
 
 // # DEBUG #
 #define N_DEBUG_FILE "./debug/log.txt"

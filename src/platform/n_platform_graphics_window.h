@@ -14,5 +14,6 @@
 #include "vulkan/vulkan.h"
 
 VkSurfaceKHR n_graphics_window_create_surface(const N_Window *window, VkInstance instance);
+void n_graphics_window_size_changed_set(N_Window *window, Bool value);
 
 #endif // !N_PLATFORM_GRAPHICS_WINDOW_H
