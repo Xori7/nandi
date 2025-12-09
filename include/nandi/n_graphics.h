@@ -30,9 +30,9 @@ extern N_Vec4_I32               n_graphics_buffer_get_size(const N_GraphicsBuffe
 #define MAX_SHADER_BUFFER_COUNT 16 
 typedef struct N_Shader N_Shader;
 
-extern N_Shader*    n_graphics_shader_create(const char *shader_path);
-extern void         n_graphics_shader_destroy(const N_Shader *shader);
-extern void         n_graphics_shader_set_buffer(N_Shader *shader, const N_GraphicsBuffer *buffer, U32 binding_index);
+extern const N_Shader*  n_graphics_shader_create(const char *shader_path);
+extern void             n_graphics_shader_destroy(const N_Shader *shader);
+extern void             n_graphics_shader_set_buffer(N_Shader *shader, const N_GraphicsBuffer *buffer, U32 buffer_index);
 
 typedef struct N_CommandBuffer N_CommandBuffer;
 extern const N_CommandBuffer*   n_graphics_command_buffer_create(void);
@@ -46,4 +46,25 @@ extern void                     n_graphics_command_buffer_reset(const N_CommandB
 
 #define N_GRAPHICS_CPU 1
 #include "nandi/n_graphics_shader.h"
+
+typedef N_Vec4_I32 N_GraphicsBufferLength;
+typedef struct N_ShaderGlobal N_ShaderGlobal;
+typedef struct N_TextureDescriptor N_TextureDescriptor;
+
+// ## Texture ##
+
+typedef enum {
+    N_TextureFormat_RGBA_F32 = 0,
+} N_TextureFormat;
+
+typedef struct N_Texture N_Texture;
+
+extern const N_Texture* n_graphics_texture_create_from_file(const char *path);
+extern const N_Texture* n_graphics_texture_create(U32 width, U32 height, U32 depth, N_TextureFormat format);
+extern void             n_graphics_texture_destroy(N_Texture *texture);
+extern void*            n_graphics_texture_map(const N_Texture *texture);
+extern void             n_graphics_texture_unmap(const N_Texture *texture);
+extern N_TextureFormat  n_graphics_texture_format(const N_Texture *texture);
+extern void             n_graphics_shader_set_texture(N_Shader *shader, const N_Texture *texture, U32 texture_index);
+
 #endif // !N_GRAPHICS_H

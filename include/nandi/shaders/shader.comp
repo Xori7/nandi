@@ -1,11 +1,41 @@
 #version 450
-#define WORKGROUP_SIZE 32
+#define WORKGROUP_SIZE 16
 #extension GL_GOOGLE_include_directive : require
+
 #include "nandi/n_graphics_shader.h"
 
-N_ShaderGlobal get_global();
+TEXTURE(albedo, 5)
 
-#include "nandi/shaders/test.comp"
-#include "nandi/shaders/rasterizer.comp"
+struct Vert {
+    vec2 position;
+    vec2 uv;
+    vec4 color;
+};
+
+struct Frag {
+    vec2 position;
+    vec2 uv;
+    vec4 color;
+};
+
+#include "nandi/shaders/rasterizer.glsl"
+
+Frag vert(Vert vert) {
+    Frag frag;
+    float t = sin(get_global().time) * 0.5f + 0.5f;
+    frag.position = vert.position * vec2(t, t);
+    frag.uv = vert.uv;
+    frag.color = vert.color;
+    return frag;
+}
+
+vec4 frag(vec3 coords, Frag v1, Frag v2, Frag v3) {
+    vec4 color = coords.x * v1.color + coords.y * v2.color + coords.z * v3.color;
+    vec2 uv = coords.x * v1.uv + coords.y * v2.uv + coords.z * v3.uv;
+    vec4 size = n_buffer_size(albedo);
+    ivec2 texel = ivec2(int(uv.x * size.x), int(uv.y * size.y));
+    vec4 pixel = color * albedo_data[int(texel.y * size.x + texel.x)].gbar;
+    return pixel;//vec4(uv.x, uv.y, uv.z, 1);
+}
 
 // vim: set filetype=c :

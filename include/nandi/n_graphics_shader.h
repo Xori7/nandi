@@ -1,70 +1,37 @@
 #if !N_GRAPHICS_SHADER_H
 #define N_GRAPHICS_SHADER_H 1
 
+#define TEXTURE_BUFFER_INDEX_OFFSET 8 
+
 struct N_ShaderGlobal{
     float time;
 };
 
+struct N_TextureDescriptor {
+    int format;
+};
+
 #if !N_GRAPHICS_CPU
-#define NBool bool
-#define U32 uint
-#define I32 int
-#define F32 float
-#define F64 double
+#define TEXTURE_BUFFER_INDEX_OFFSET 8 
 
-#define N_Vec2_B   bvec2
-#define N_Vec2_I32 ivec2
-#define N_Vec2_U32 uvec2
-#define N_Vec2_F32 vec2
-#define N_Vec2_F64 dvec2
+#define N_TextureFormat_RGBA_F32 0
 
-#define N_Vec3_B   bvec3
-#define N_Vec3_I32 ivec3
-#define N_Vec3_U32 uvec3
-#define N_Vec3_F32 vec3
-#define N_Vec3_F64 dvec3
+#define n_buffer_size(name) name##_size
+#define n_texture_descriptor(name) name##_descriptor
 
-#define N_Vec4_B   bvec4
-#define N_Vec4_I32 ivec4
-#define N_Vec4_U32 uvec4
-#define N_Vec4_F32 vec4
-#define N_Vec4_F64 dvec4
-#define N_ARGB_F32 vec4
-#define N_ARGB_U8 uint
+#define _BUFFER(name, bind_id, keywords)                    \
+layout(std430, binding = bind_id) keywords buffer name {    \
+    ivec4 n_buffer_size(name);
 
-#define STRUCT(name, definition) name { definition }
+#define READONLY_BUFFER(name, bind_id) _BUFFER(name, bind_id, readonly restrict)
 
-#define n_buffer_size_x(name) name##_size_x
-#define n_buffer_size_y(name) name##_size_y
-#define n_buffer_size_z(name) name##_size_z
-#define n_buffer_size_w(name) name##_size_w
+#define BUFFER(name, bind_id) _BUFFER(name, bind_id, )
 
-#define WRITEONLY_BUFFER(name, bind_id) \
-layout(std430, binding = (bind_id) * 2 + 1) buffer name##_size \
-{ \
-    int n_buffer_size_x(name); \
-    int n_buffer_size_y(name); \
-    int n_buffer_size_z(name); \
-    int n_buffer_size_w(name); \
-}; \
-layout(std430, binding = (bind_id) * 2) writeonly restrict buffer name
+#define TEXTURE(name, texture_id)                       \
+READONLY_BUFFER(name, texture_id)              \
+    N_TextureDescriptor name##_descriptor;              \
+    vec4 name##_data[];                                 \
+};
 
-#define BUFFER(name, bind_id) \
-layout(std430, binding = (bind_id) * 2 + 1) buffer name##_size \
-{ \
-    int n_buffer_size_x(name); \
-    int n_buffer_size_y(name); \
-    int n_buffer_size_z(name); \
-    int n_buffer_size_w(name); \
-}; \
-layout(std430, binding = (bind_id) * 2) buffer name
-
-#else
-
-typedef N_Vec4_I32 N_GraphicsBufferLength;
-typedef struct N_ShaderGlobal N_ShaderGlobal;
-
-#endif
-
-
+#endif // !N_GRAPHICS_CPU
 #endif // !N_GRAPHICS_SHADER_H

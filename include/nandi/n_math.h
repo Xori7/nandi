@@ -37,10 +37,10 @@ typedef union {
 
 typedef struct {
     U8 a, r, g, b;
-} N_ARGB_U8;
+} N_RGBA_U8;
 
 typedef struct {
     F32 a, r, g, b;
-} N_ARGB_F32;
+} N_RGBA_F32;
 
 #endif // !N_MATH_H

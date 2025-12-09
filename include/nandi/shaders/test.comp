@@ -1,3 +1,5 @@
+TEXTURE(albedo, 0)
+
 struct Vert {
     vec4 color;
     vec2 position;
@@ -7,11 +9,14 @@ struct Vert {
 
 struct Frag {
     vec4 color;
+    vec2 position;
 };
 
 Frag vert(Vert vert) {
     Frag frag;
-    frag.color = vert.color * (sin(get_global().time * 10) * 0.5f + 0.5f);
+    float s = sin(get_global().time * 2 * 0.5f + 0.5f);
+    frag.color = vert.color;
+    frag.position = vert.position + vec2(s, 0);
     return frag;
 }
 
