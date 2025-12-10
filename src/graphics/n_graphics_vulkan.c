@@ -172,36 +172,64 @@ uint32_t n_vk_get_compute_queue_family_index(VkPhysicalDevice physical_device) {
     return i;
 }
 
-static N_VkGraphicsDevice n_vk_create_device(VkPhysicalDevice physical_device) {
-    VkDeviceQueueCreateInfo queueCreateInfo = {0};
-    queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    _gs.queueFamilyIndex = n_vk_get_compute_queue_family_index(physical_device); 
-    queueCreateInfo.queueFamilyIndex = _gs.queueFamilyIndex;
-    queueCreateInfo.queueCount = 1; 
-    float queuePriorities = 1.0;  
-    queueCreateInfo.pQueuePriorities = &queuePriorities;
+static N_VkGraphicsDevice n_vk_create_device(VkPhysicalDevice physical_device)
+{
+    _gs.queueFamilyIndex = n_vk_get_compute_queue_family_index(physical_device);
 
-    VkDeviceCreateInfo deviceCreateInfo = {0};
-    VkPhysicalDeviceFeatures deviceFeatures = {0};
+    VkDeviceQueueCreateInfo queueCreateInfo = {
+        .sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+        .queueFamilyIndex = _gs.queueFamilyIndex,
+        .queueCount       = 1,
+        .pQueuePriorities = &(float){ 1.0f }
+    };
 
-    deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    deviceCreateInfo.enabledLayerCount = _gs.layers_info.enabled_layer_count;
-    deviceCreateInfo.ppEnabledLayerNames = _gs.layers_info.enabled_layers;
-    deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo; 
-    deviceCreateInfo.queueCreateInfoCount = 1;
-    deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
-    deviceCreateInfo.enabledExtensionCount = 1;
-    const char *extensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
-    deviceCreateInfo.ppEnabledExtensionNames = extensions;
+    const char* deviceExtensions[] = {
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+        "VK_KHR_buffer_device_address",
+        "VK_KHR_shader_non_semantic_info",
+    };
+    const uint32_t extensionCount = sizeof(deviceExtensions) / sizeof(deviceExtensions[0]);
+
+    VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddress = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
+        .bufferDeviceAddress = VK_TRUE,
+    };
+
+    VkPhysicalDeviceFeatures2 features2 = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        .pNext = &bufferDeviceAddress
+    };
+
+    // Optional: add more features if you want (scalar layout, etc.)
+    VkPhysicalDeviceScalarBlockLayoutFeatures scalarLayout = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES,
+        .pNext = &bufferDeviceAddress,
+        .scalarBlockLayout = VK_TRUE,
+    };
+    features2.pNext = &scalarLayout;
+
+    VkDeviceCreateInfo deviceCreateInfo = {
+        .sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+        .pNext                   = &features2,                     // ← chain the features!
+        .queueCreateInfoCount    = 1,
+        .pQueueCreateInfos       = &queueCreateInfo,
+        .enabledLayerCount       = _gs.layers_info.enabled_layer_count,
+        .ppEnabledLayerNames     = _gs.layers_info.enabled_layers,
+        .enabledExtensionCount   = extensionCount,
+        .ppEnabledExtensionNames = deviceExtensions,
+        .pEnabledFeatures        = NULL,  // we use features2 instead
+    };
 
     VkDevice device;
+    VK_CHECK_RESULT(vkCreateDevice(physical_device, &deviceCreateInfo, NULL, &device));
+
     VkQueue compute_queue;
-    VK_CHECK_RESULT(vkCreateDevice(physical_device, &deviceCreateInfo, NULL, &device)); 
     vkGetDeviceQueue(device, _gs.queueFamilyIndex, 0, &compute_queue);
+
     return (N_VkGraphicsDevice) {
         .physical_device = physical_device,
-        .device = device,
-        .compute_queue = compute_queue
+        .device          = device,
+        .compute_queue   = compute_queue
     };
 }
 
@@ -419,14 +447,13 @@ static void end_one_time_commands(VkCommandBuffer cmd)
 
 typedef struct {
     VkBuffer        buffer;
+    U64             address;
     VkDeviceMemory  memory;
     VkDeviceSize    buffer_size;
-    // NEW: staging part (hidden from user)
     VkBuffer        staging_buffer;
     VkDeviceMemory  staging_memory;
 } N_GPUBuffer;
 
-// Helper: find memory type (you probably already have this)
 static uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
     VkPhysicalDeviceMemoryProperties memProps;
     vkGetPhysicalDeviceMemoryProperties(_gs.device.physical_device, &memProps);
@@ -451,15 +478,20 @@ static N_GPUBuffer n_gpu_buffer_create(U64 size)
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE
     };
 
-    // ── 1. Staging buffer: CPU writes → copied FROM → needs TRANSFER_SRC ──
     bufInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     VK_CHECK_RESULT(vkCreateBuffer(_gs.device.device, &bufInfo, NULL, &buf.staging_buffer));
 
     VkMemoryRequirements memReqs;
     vkGetBufferMemoryRequirements(_gs.device.device, buf.staging_buffer, &memReqs);
 
+    VkMemoryAllocateFlagsInfo allocFlags = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
+        .flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT
+    };
+
     VkMemoryAllocateInfo allocInfo = {
         .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext           = &allocFlags,
         .allocationSize  = memReqs.size,
         .memoryTypeIndex = findMemoryType(memReqs.memoryTypeBits,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
@@ -467,15 +499,15 @@ static N_GPUBuffer n_gpu_buffer_create(U64 size)
     VK_CHECK_RESULT(vkAllocateMemory(_gs.device.device, &allocInfo, NULL, &buf.staging_memory));
     VK_CHECK_RESULT(vkBindBufferMemory(_gs.device.device, buf.staging_buffer, buf.staging_memory, 0));
 
-    // ── 2. Device-local buffer: GPU reads + copied TO → needs TRANSFER_DST ──
     bufInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
-                    VK_BUFFER_USAGE_TRANSFER_DST_BIT |           // receives copy
-                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |        // SSBO / buffer_reference
-                    VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;  // bindless textures
+                    VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                    VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 
     VK_CHECK_RESULT(vkCreateBuffer(_gs.device.device, &bufInfo, NULL, &buf.buffer));
 
     vkGetBufferMemoryRequirements(_gs.device.device, buf.buffer, &memReqs);
+
     allocInfo.allocationSize  = memReqs.size;
     allocInfo.memoryTypeIndex = findMemoryType(memReqs.memoryTypeBits,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -483,12 +515,14 @@ static N_GPUBuffer n_gpu_buffer_create(U64 size)
     VK_CHECK_RESULT(vkAllocateMemory(_gs.device.device, &allocInfo, NULL, &buf.memory));
     VK_CHECK_RESULT(vkBindBufferMemory(_gs.device.device, buf.buffer, buf.memory, 0));
 
+    buf.address = vkGetBufferDeviceAddress(_gs.device.device, &(VkBufferDeviceAddressInfo){
+        .sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+        .buffer = buf.buffer
+    });
+
     return buf;
 }
 
-// ===================================================================
-// DESTROY
-// ===================================================================
 static void n_gpu_buffer_destroy(N_GPUBuffer buffer)
 {
     if (buffer.buffer)          vkDestroyBuffer(_gs.device.device, buffer.buffer, NULL);
@@ -497,9 +531,6 @@ static void n_gpu_buffer_destroy(N_GPUBuffer buffer)
     if (buffer.staging_memory)  vkFreeMemory(_gs.device.device, buffer.staging_memory, NULL);
 }
 
-// ===================================================================
-// MAP: now maps staging buffer (fast CPU writes)
-// ===================================================================
 static void* n_gpu_buffer_map(N_GPUBuffer buffer)
 {
     void* data;
@@ -507,16 +538,11 @@ static void* n_gpu_buffer_map(N_GPUBuffer buffer)
     return data;
 }
 
-// ===================================================================
-// UNMAP: copies staging → device-local (automatic upload!)
-// ===================================================================
 static void n_gpu_buffer_unmap(N_GPUBuffer buffer)
 {
     vkUnmapMemory(_gs.device.device, buffer.staging_memory);
 
-    // One-time command buffer copy
-    VkCommandBuffer cmd = begin_one_time_commands();  // you probably have this helper
-
+    VkCommandBuffer cmd = begin_one_time_commands();
     VkBufferCopy copy = {
         .srcOffset = 0,
         .dstOffset = 0,
@@ -524,12 +550,11 @@ static void n_gpu_buffer_unmap(N_GPUBuffer buffer)
     };
     vkCmdCopyBuffer(cmd, buffer.staging_buffer, buffer.buffer, 1, &copy);
 
-    end_one_time_commands(cmd);  // submits and waits
+    end_one_time_commands(cmd);
 }
 
 struct N_GraphicsBuffer {
     N_GPUBuffer data_buffer;
-    //N_GPUBuffer size_buffer;
     N_Vec4_I32 size;
 };
 
@@ -620,6 +645,10 @@ extern void n_graphics_buffer_unmap(const N_GraphicsBuffer *buffer) {
 
 extern N_Vec4_I32 n_graphics_buffer_get_size(const N_GraphicsBuffer *buffer) {
     return buffer->size;
+}
+
+extern U64 n_graphics_buffer_get_address(const N_GraphicsBuffer *buffer) {
+    return buffer->data_buffer.address;
 }
 
 struct N_Shader {

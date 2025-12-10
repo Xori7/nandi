@@ -49,6 +49,12 @@ void main() {
     ivec2 size  = ivec2(n_buffer_size(frame_buffer).xy);
 
     if (any(greaterThanEqual(pixel, size))) return;
+    
+    /*
+    if (gl_WorkGroupID.x % 2 == 0 || gl_WorkGroupID.y % 2 == 0) {
+        return;
+    }
+    */
 
     uint pixelIndex = uint(pixel.y * size.x + pixel.x);
     vec4 finalColor = vec4(0.0, 0.0, 0.0, 1.0);

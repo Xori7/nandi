@@ -5,6 +5,7 @@
 
 struct N_ShaderGlobal{
     float time;
+    uint64_t materials;
 };
 
 struct N_TextureDescriptor {

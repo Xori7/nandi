@@ -10,25 +10,10 @@ typedef struct {
 } N_Vec3;
 
 typedef struct {
-    N_Vec3 color;
-    float pad1[1];
-    N_Vec2 position;
-    float pad2[2];
-} N_Circle;
-
-typedef struct {
-    I32 length;
-    I32 padding;
-    N_Circle circles[];
-} N_CircleBuffer;
-
-typedef struct {
     N_Vec2_F32 position;
     N_Vec2_F32 uv;
     N_RGBA_F32 color;
 } Vert;
-
-#include <math.h>
 
 const int WIDTH = 1080; // Size of rendered mandelbrot set.
 const int HEIGHT = 1080; // Size of renderered mandelbrot set.
@@ -46,8 +31,8 @@ void run(void) {
     const I32 INDEX_COUNT = 300;
     const N_GraphicsBuffer *frame_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = WIDTH, .y = HEIGHT}, sizeof(N_RGBA_U8));
     const N_GraphicsBuffer *vertex_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = VERTEX_COUNT}, sizeof(Vert));
-    const N_GraphicsBuffer *global_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = 1}, sizeof(N_ShaderGlobal));
     const N_GraphicsBuffer *index_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = INDEX_COUNT}, sizeof(U32));
+    const N_GraphicsBuffer *global_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = 1}, sizeof(N_ShaderGlobal));
     N_Texture *patrykp = (N_Texture*)n_graphics_texture_create_from_file("./res/patrykp.png");
 
     Vert *vertices = n_graphics_buffer_map(vertex_buffer);
@@ -75,11 +60,24 @@ void run(void) {
     n_graphics_buffer_unmap(index_buffer);
 
     N_Shader *shader = (N_Shader*)n_graphics_shader_create("./include/nandi/shaders/shader.comp");
+
+    const N_GraphicsBuffer *material_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = MAX_MATERIALS_COUNT}, sizeof(N_MaterialProperties));
+    const N_Material *material = n_graphics_material_create(shader, (N_MaterialProperties) {
+            .textures[0] = n_graphics_texture_get_address(patrykp),
+        });
+    
+    N_MaterialProperties *materials = n_graphics_buffer_map(material_buffer);
+    materials[0] = *n_graphics_material_get_properties(material);
+    n_graphics_buffer_unmap(material_buffer);
+
+    N_ShaderGlobal *global = n_graphics_buffer_map(global_buffer);
+    global->materials = n_graphics_buffer_get_address(material_buffer);
+    n_graphics_buffer_unmap(global_buffer);
+
     n_graphics_shader_set_buffer(shader, frame_buffer, 0);
     n_graphics_shader_set_buffer(shader, vertex_buffer, 1);
-    n_graphics_shader_set_buffer(shader, global_buffer, 2);
     n_graphics_shader_set_buffer(shader, index_buffer, 3);
-    n_graphics_shader_set_texture(shader, patrykp, 5);
+    n_graphics_shader_set_buffer(shader, global_buffer, 2);
 
     const N_CommandBuffer *command_buffer = n_graphics_command_buffer_create();
     const N_CommandBuffer *present_command_buffer = n_graphics_command_buffer_create();

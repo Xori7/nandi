@@ -1,10 +1,28 @@
-#version 450
+#version 460
 #define WORKGROUP_SIZE 16
 #extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_buffer_reference            : require
+#extension GL_EXT_buffer_reference2           : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_scalar_block_layout         : require   // optional but good
 
 #include "nandi/n_graphics_shader.h"
 
-TEXTURE(albedo, 5)
+layout(buffer_reference, scalar, buffer_reference_align = 8) readonly buffer N_Material {
+    ivec4     buff_size;
+    float    params[64];      // 16 × vec4
+    uint64_t textures[8];
+    uint64_t buffers[8];
+    uint     flags;
+    uint     _pad[3];
+};
+
+layout(buffer_reference, scalar, buffer_reference_align = 8) readonly buffer N_Texture {
+    ivec4                buff_size;
+    N_TextureDescriptor descriptor;
+    vec4                data[];
+};
+
 
 struct Vert {
     vec2 position;
@@ -30,11 +48,15 @@ Frag vert(Vert vert) {
 }
 
 vec4 frag(vec3 coords, Frag v1, Frag v2, Frag v3) {
+    uint64_t material_addr = get_global().materials;
+    N_Material material = N_Material(material_addr);
+    N_Texture albedo = N_Texture(material.textures[0]);
+
     vec4 color = coords.x * v1.color + coords.y * v2.color + coords.z * v3.color;
     vec2 uv = coords.x * v1.uv + coords.y * v2.uv + coords.z * v3.uv;
-    vec4 size = n_buffer_size(albedo);
+    vec4 size = albedo.buff_size;
     ivec2 texel = ivec2(int(uv.x * size.x), int(uv.y * size.y));
-    vec4 pixel = color * albedo_data[int(texel.y * size.x + texel.x)].gbar;
+    vec4 pixel = color * albedo.data[int(texel.y * size.x + texel.x)].rgba;
     return pixel;//vec4(uv.x, uv.y, uv.z, 1);
 }
 

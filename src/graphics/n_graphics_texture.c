@@ -74,6 +74,6 @@ extern N_TextureFormat n_graphics_texture_format(const N_Texture *texture) {
     return texture->format;
 }
 
-extern void n_graphics_shader_set_texture(N_Shader *shader, const N_Texture *texture, U32 texture_index) {
-    n_graphics_shader_set_buffer(shader, texture->buffer, texture_index);
+extern U64 n_graphics_texture_get_address(const N_Texture *texture) {
+    return n_graphics_buffer_get_address(texture->buffer);
 }

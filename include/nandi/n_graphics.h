@@ -25,6 +25,7 @@ extern void                     n_graphics_buffer_destroy(const N_GraphicsBuffer
 extern void*                    n_graphics_buffer_map(const N_GraphicsBuffer *buffer);
 extern void                     n_graphics_buffer_unmap(const N_GraphicsBuffer *buffer);
 extern N_Vec4_I32               n_graphics_buffer_get_size(const N_GraphicsBuffer *buffer);
+extern U64                      n_graphics_buffer_get_address(const N_GraphicsBuffer *buffer);
 
 #define MAX_SHADER_COUNT 256
 #define MAX_SHADER_BUFFER_COUNT 16 
@@ -65,6 +66,27 @@ extern void             n_graphics_texture_destroy(N_Texture *texture);
 extern void*            n_graphics_texture_map(const N_Texture *texture);
 extern void             n_graphics_texture_unmap(const N_Texture *texture);
 extern N_TextureFormat  n_graphics_texture_format(const N_Texture *texture);
-extern void             n_graphics_shader_set_texture(N_Shader *shader, const N_Texture *texture, U32 texture_index);
+extern U64              n_graphics_texture_get_address(const N_Texture *texture);
+
+// ## Material ##
+
+#define MAX_MATERIALS_COUNT 262144
+
+typedef struct N_Material N_Material;
+
+typedef struct {
+    F32 params[64];
+    U64 textures[8];
+    U64 buffers[8];
+    U32 flags;
+} N_MaterialProperties;
+
+extern const N_Material*        n_graphics_material_create(const N_Shader *shader, N_MaterialProperties properties);
+extern void                     n_graphics_material_destroy(N_Material *material);
+extern const N_Shader*          n_graphics_material_get_shader(const N_Material *material);
+extern void                     n_graphics_material_set_properties(N_Material *material, N_MaterialProperties properties);
+extern N_MaterialProperties*    n_graphics_material_get_properties(const N_Material *material);
+extern U32                      n_graphics_material_upload_to_per_frame_buffer(N_Material *material);
+extern void                     n_graphics_material_clear_per_frame_buffer(void);
 
 #endif // !N_GRAPHICS_H
