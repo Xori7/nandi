@@ -29,7 +29,8 @@ void run(void) {
 
     const I32 VERTEX_COUNT = 4;
     const I32 INDEX_COUNT = 300;
-    const N_GraphicsBuffer *frame_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = WIDTH, .y = HEIGHT}, sizeof(N_RGBA_U8));
+
+    const N_Texture *render_texture = n_graphics_texture_create((N_Vec4_I32){.x = n_graphics_window_get_size_x(window), .y = n_graphics_window_get_size_y(window)}, N_TextureFormat_RGBA_F32);
     const N_GraphicsBuffer *vertex_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = VERTEX_COUNT}, sizeof(Vert));
     const N_GraphicsBuffer *index_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = INDEX_COUNT}, sizeof(U32));
     const N_GraphicsBuffer *global_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = 1}, sizeof(N_ShaderGlobal));
@@ -72,12 +73,12 @@ void run(void) {
 
     N_ShaderGlobal *global = n_graphics_buffer_map(global_buffer);
     global->materials = n_graphics_buffer_get_address(material_buffer);
+    global->render_texture = n_graphics_texture_get_address(render_texture);
+    global->vertex_buffer = n_graphics_buffer_get_address(vertex_buffer);
+    global->index_buffer = n_graphics_buffer_get_address(index_buffer);
     n_graphics_buffer_unmap(global_buffer);
 
-    n_graphics_shader_set_buffer(shader, frame_buffer, 0);
-    n_graphics_shader_set_buffer(shader, vertex_buffer, 1);
-    n_graphics_shader_set_buffer(shader, index_buffer, 3);
-    n_graphics_shader_set_buffer(shader, global_buffer, 2);
+    n_graphics_shader_set_buffer(shader, global_buffer, 0);
 
     const N_CommandBuffer *command_buffer = n_graphics_command_buffer_create();
     const N_CommandBuffer *present_command_buffer = n_graphics_command_buffer_create();
@@ -90,13 +91,12 @@ void run(void) {
     Bool running = TRUE;
     while (running) {
         N_DEBUG_MESURE("frame",
-
             N_DEBUG_MESURE("input",
-            n_input_update(window);
+                n_input_update(window);
 
-            if (n_input_key_down(NKEYCODE_P)) {
-                running = FALSE;
-            }
+                if (n_input_key_down(NKEYCODE_P)) {
+                    running = FALSE;
+                }
             );
 
             if (n_graphics_window_size_changed(window)) {
@@ -105,17 +105,21 @@ void run(void) {
                 N_DEBUG_MESURE("frame buffer rebuild",
                     U32 width = n_graphics_window_get_size_x(window);
                     U32 height = n_graphics_window_get_size_y(window);
-                    n_graphics_buffer_destroy(frame_buffer);
-                    frame_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = width, .y = height}, sizeof(N_RGBA_U8));
-                    n_graphics_shader_set_buffer(shader, frame_buffer, 0);
+                    n_graphics_texture_destroy((N_Texture*)render_texture);
 
+                    render_texture = n_graphics_texture_create((N_Vec4_I32){.x = width, .y = height}, sizeof(N_RGBA_F32));
+                    N_ShaderGlobal *global = n_graphics_buffer_map(global_buffer);
+                    global->render_texture = n_graphics_texture_get_address(render_texture);
+                    n_graphics_buffer_unmap(global_buffer);
                 );
             }
 
-            U32 *frame = n_graphics_buffer_map(frame_buffer);
-            N_Vec4_I32 size = n_graphics_buffer_get_size(frame_buffer);
-            memset(frame, 0, size.x * size.y * 4);
-            n_graphics_buffer_unmap(frame_buffer);
+            N_Vec4_I32 size = n_graphics_texture_get_size(render_texture);
+            /*
+            N_RGBA_F32 *frame = n_graphics_texture_map(render_texture);
+            memset(frame, 0, size.x * size.y * 4 * 4);
+            n_graphics_texture_unmap(render_texture);
+            */
 
             N_ShaderGlobal *global = n_graphics_buffer_map(global_buffer);
             global->time = (F32)n_debug_time();
@@ -129,7 +133,7 @@ void run(void) {
             n_graphics_command_buffer_submit(command_buffer);
 
             N_DEBUG_MESURE("present",
-                n_graphics_command_buffer_present(present_command_buffer, frame_buffer);
+                n_graphics_command_buffer_present(present_command_buffer, render_texture);
             );
         );
     }
@@ -140,8 +144,9 @@ void run(void) {
 
     n_graphics_texture_destroy(patrykp);
     n_graphics_shader_destroy(shader);
+    n_graphics_buffer_destroy(material_buffer);
     n_graphics_buffer_destroy(vertex_buffer);
-    n_graphics_buffer_destroy(frame_buffer);
+    n_graphics_texture_destroy((N_Texture*)render_texture);
     n_graphics_buffer_destroy(global_buffer);
     n_graphics_buffer_destroy(index_buffer);
 

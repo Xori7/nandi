@@ -45,7 +45,16 @@ typedef struct {
     VkImage swapchain_images[32];
     U32 screen_width;
     U32 screen_height;
+    const N_Shader *present_shader;
+    const N_GraphicsBuffer *frame_buffer;
+    const N_GraphicsBuffer *present_shader_buffer;
+    const N_CommandBuffer *copy_command_buffer;
 } N_GraphicsState;
+
+typedef struct {
+    U64 frame_buffer;
+    U64 render_texture;
+} N_PresentShaderBuffer;
 
 static N_GraphicsState _gs = {0};
 
@@ -197,7 +206,8 @@ static N_VkGraphicsDevice n_vk_create_device(VkPhysicalDevice physical_device)
 
     VkPhysicalDeviceFeatures2 features2 = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-        .pNext = &bufferDeviceAddress
+        .pNext = &bufferDeviceAddress,
+        .features.shaderInt64 = VK_TRUE
     };
 
     // Optional: add more features if you want (scalar layout, etc.)
@@ -333,6 +343,25 @@ extern void n_graphics_recreate_swap_chain(const N_Window *window) {
     _gs.screen_height = n_graphics_window_get_size_y(window);
     _gs.swapchain_image_count = 3;
     VK_CHECK_RESULT(vkGetSwapchainImagesKHR(_gs.device.device, _gs.swapchain, &_gs.swapchain_image_count, _gs.swapchain_images));
+
+    if (_gs.frame_buffer != NULL) {
+        n_graphics_buffer_destroy(_gs.frame_buffer);
+        _gs.frame_buffer = NULL;
+    }
+
+    _gs.frame_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = _gs.screen_width, .y = _gs.screen_height}, sizeof(N_RGBA_U8));
+
+    N_PresentShaderBuffer *present_shader_buffer = n_graphics_buffer_map(_gs.present_shader_buffer);
+    present_shader_buffer->frame_buffer = n_graphics_buffer_get_address(_gs.frame_buffer);
+    n_graphics_buffer_unmap(_gs.present_shader_buffer);
+}
+
+static void init_present_shader(void) {
+    _gs.present_shader = n_graphics_shader_create("./engine/shaders/present_shader.comp");
+    _gs.present_shader_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = 1}, sizeof(N_PresentShaderBuffer));
+    n_graphics_shader_set_buffer((N_Shader*)_gs.present_shader, _gs.present_shader_buffer, 0); 
+    _gs.copy_command_buffer = n_graphics_command_buffer_create();
+
 }
 
 extern void n_graphics_initialize(void) {
@@ -381,15 +410,9 @@ extern void n_graphics_initialize(void) {
     _gs.command_pool = n_vk_create_command_pool();
 
     _gs.initialized = TRUE;
-}
 
-/*
-typedef struct {
-    VkBuffer buffer;
-    uint32_t buffer_size;
-    VkDeviceMemory buffer_memory;
-} N_GPUBuffer;
-*/
+    init_present_shader();
+}
 
 static VkCommandPool _one_time_cmd_pool = VK_NULL_HANDLE;
 
@@ -585,6 +608,27 @@ static N_GPUBuffer n_gpu_buffer_create(U64 size) {
     };
 
     VK_CHECK_RESULT(vkCreateBuffer(_gs.device.device, &bufferCreateInfo, NULL, &graphics_buffer.buffer));
+vkAcquireNextImageKHR(...);
+
+VkCommandBuffer cmd = command_buffer->buffer;
+vkBeginCommandBuffer(cmd, oneTimeBeginInfo);
+
+// transition swapchain → TRANSFER_DST
+... your barrier ...
+
+VkBufferImageCopy region = {
+    .bufferOffset      = 0,                     // ← 0, not 16
+    .bufferRowLength   = _gs.screen_width,
+    .bufferImageHeight = _gs.screen_height,
+    .imageSubresource  = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+    .imageExtent       = { width, height, 1 }
+};
+
+vkCmdCopyBufferToImage(cmd,
+    _gs.frame_buffer->data_buffer.buffer,
+    swapchainImage,
+    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    1, &region);
 
     VkMemoryRequirements memoryRequirements;
     vkGetBufferMemoryRequirements(_gs.device.device, graphics_buffer.buffer, &memoryRequirements);
@@ -621,6 +665,10 @@ static void n_gpu_buffer_unmap(N_GPUBuffer buffer) {
 
 extern const N_GraphicsBuffer* n_graphics_buffer_create(N_Vec4_I32 size, U32 stride) {
     N_GraphicsBuffer *buffer = malloc(sizeof(*buffer));
+    if (buffer == NULL) {
+        n_debug_err("failed to create graphics buffer - out of memory");
+        exit(-1);
+    }
     U64 buf_size = stride * size.x * (size.y > 0 ? size.y : 1) * (size.z > 0 ? size.z : 1) * (size.w > 0 ? size.w : 1);
     buffer->data_buffer = n_gpu_buffer_create(sizeof(N_Vec4_I32) + buf_size);
     buffer->size = size;
@@ -845,7 +893,27 @@ extern void n_graphics_command_buffer_cmd_dispatch(const N_CommandBuffer *comman
     vkCmdDispatch(command_buffer->buffer, work_g_x, work_g_y, work_g_z);
 }
 
-extern void n_graphics_command_buffer_present(const N_CommandBuffer *command_buffer, const N_GraphicsBuffer *frame_buffer) {
+extern void n_graphics_command_buffer_present(const N_CommandBuffer *command_buffer, const N_Texture *texture) {
+    N_Vec4_I32 size_texture = n_graphics_texture_get_size(texture);
+    N_Vec4_I32 size_buffer = n_graphics_buffer_get_size(_gs.frame_buffer);
+    printf("Buffer usage flags = 0x%llx\n", n_graphics_buffer_get_address(_gs.frame_buffer));
+    printf("Buffer usage flags = 0x%llx\n", n_graphics_texture_get_address(texture));
+    if (n_math_equal_vec4_i32(size_texture, size_buffer) == FALSE) {
+        n_debug_err("frame buffer and texture to present have different sizes, which is not allowed! (%d, %d, %d, %d) != (%d, %d, %d, %d)",
+                size_texture.x, size_texture.y, size_texture.z, size_texture.w, size_buffer.x, size_buffer.y, size_buffer.z, size_buffer.w);
+        exit(-1);
+    }
+    N_PresentShaderBuffer *present_shader_buffer = n_graphics_buffer_map(_gs.present_shader_buffer);
+    present_shader_buffer->render_texture = n_graphics_texture_get_address(texture); 
+    n_graphics_buffer_unmap(_gs.present_shader_buffer);
+
+    const N_CommandBuffer *copy_command_buffer = _gs.copy_command_buffer;
+    n_graphics_command_buffer_reset(copy_command_buffer);
+    n_graphics_command_buffer_begin(copy_command_buffer);
+    n_graphics_command_buffer_cmd_dispatch(copy_command_buffer, _gs.present_shader, _gs.screen_width / 16 + 1, _gs.screen_height / 16 + 1, 1);
+    n_graphics_command_buffer_end(copy_command_buffer);
+    n_graphics_command_buffer_submit(copy_command_buffer);
+
     uint32_t imageIndex;
     VkSemaphore acquireSemaphore;
     VkSemaphoreCreateInfo semaphoreInfo = { .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
@@ -874,7 +942,7 @@ extern void n_graphics_command_buffer_present(const N_CommandBuffer *command_buf
 
     // Copy frameBuffer to swapchainImage
     VkBufferImageCopy region = {
-        .bufferOffset = 0,
+        .bufferOffset = sizeof(N_Vec4_I32),
         .bufferRowLength = _gs.screen_width,
         .bufferImageHeight = _gs.screen_height,
         .imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
@@ -882,7 +950,7 @@ extern void n_graphics_command_buffer_present(const N_CommandBuffer *command_buf
         .imageExtent = { _gs.screen_width, _gs.screen_height, 1 }
     };
 
-    vkCmdCopyBufferToImage(command_buffer->buffer, frame_buffer->data_buffer.buffer, swapchainImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    vkCmdCopyBufferToImage(command_buffer->buffer, _gs.frame_buffer->data_buffer.buffer, swapchainImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
     // Transition to PRESENT_SRC_KHR
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -967,6 +1035,11 @@ extern void n_graphics_deinitialize(void) {
         }
         func(_gs.instance, _gs.debug_report_callback, NULL);
     }
+
+    n_graphics_command_buffer_destroy(_gs.copy_command_buffer);
+    n_graphics_buffer_destroy(_gs.frame_buffer);
+    n_graphics_buffer_destroy(_gs.present_shader_buffer);
+    n_graphics_shader_destroy(_gs.present_shader);
 
     vkDestroySwapchainKHR(_gs.device.device, _gs.swapchain, NULL);
     vkDestroySurfaceKHR(_gs.instance, _gs.surface, NULL);

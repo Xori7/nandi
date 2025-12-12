@@ -1,0 +1,48 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_buffer_reference            : require
+#extension GL_EXT_buffer_reference2           : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_scalar_block_layout         : require   // optional but good
+
+#define WORKGROUP_SIZE 16
+
+struct N_PresentShaderBuffer {
+    uint64_t frame_buffer;
+    uint64_t texture;
+};
+struct N_TextureDescriptor {
+    int format;
+};
+
+layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE, local_size_z = 1) in;
+
+layout(buffer_reference, scalar, buffer_reference_align = 8) buffer N_FrameBuffer {
+    ivec4 size;
+    uint pixels[];
+};
+
+layout(buffer_reference, scalar, buffer_reference_align = 8) readonly buffer N_Texture {
+    ivec4               size;
+    N_TextureDescriptor descriptor;
+    vec4                pixels[];
+};
+
+layout(std430, binding = 0) buffer buff {
+    N_PresentShaderBuffer _this;
+};
+
+void main() {
+    N_FrameBuffer frame_buffer = N_FrameBuffer(_this.frame_buffer);
+    N_Texture texture = N_Texture(_this.texture);
+
+    ivec2 size  = ivec2(frame_buffer.size.xy);
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+
+    if (any(greaterThanEqual(pixel, size))) {
+        return;
+    }
+    
+    uint pixelIndex = uint(pixel.y * size.x + pixel.x);
+    frame_buffer.pixels[pixelIndex] = packUnorm4x8(texture.pixels[pixelIndex].bgra);
+}

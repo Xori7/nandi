@@ -1,17 +1,13 @@
-BUFFER(frame_buffer, 0)
-    uint imageData[];
-};
-
-BUFFER(vertex_buffer, 1)
-    Vert vertices[];
-};
-
-BUFFER(global_buffer, 2)
+BUFFER(global_buffer, 0)
     N_ShaderGlobal global;
 };
 
-BUFFER(index_buffer, 3)
-    int indices[];
+layout(buffer_reference, scalar, buffer_reference_align = 8) readonly buffer N_Vertices {
+    Vert data[];
+};
+
+layout(buffer_reference, scalar, buffer_reference_align = 8) readonly buffer N_Indices {
+    uint data[];
 };
 
 layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE, local_size_z = 1) in;
@@ -36,17 +32,16 @@ vec3 PointInTriangle (vec2 p, vec2 p0, vec2 p1, vec2 p2)
     return vec3(r, s, t);
 }
 
-void compute(int x, int y) {
-    int width = n_buffer_size(frame_buffer).x;
-    int height = n_buffer_size(frame_buffer).y;
-}
-
 Frag vert(Vert vert);
 vec4 frag(vec3 baricentric, Frag v0, Frag v1, Frag v2);
 
 void main() {
+    N_Texture render_texture = N_Texture(get_global().render_texture);
+    N_Indices indices = N_Indices(get_global().index_buffer);
+    N_Vertices vertices = N_Vertices(get_global().vertex_buffer);
+
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 size  = ivec2(n_buffer_size(frame_buffer).xy);
+    ivec2 size  = ivec2(render_texture.size.xy);
 
     if (any(greaterThanEqual(pixel, size))) return;
     
@@ -62,17 +57,18 @@ void main() {
     uint triangleStart = 0;
     uint triangleCount = 100;
 
+
     // Loop over ALL triangles that could cover this pixel
     for (uint i = triangleStart; i < triangleStart + triangleCount; i++)
     {
         uint idx = i * 3;
-        uint i0 = indices[idx];
-        uint i1 = indices[idx+1];
-        uint i2 = indices[idx+2];
+        uint i0 = indices.data[idx];
+        uint i1 = indices.data[idx+1];
+        uint i2 = indices.data[idx+2];
 
-        Frag f0 = vert(vertices[i0]);
-        Frag f1 = vert(vertices[i1]);
-        Frag f2 = vert(vertices[i2]);
+        Frag f0 = vert(vertices.data[i0]);
+        Frag f1 = vert(vertices.data[i1]);
+        Frag f2 = vert(vertices.data[i2]);
 
         // CORRECT FOR SCREEN-SPACE (0..1) → pixel coordinates
         vec2 p0 = f0.position.xy * vec2(size);
@@ -90,7 +86,7 @@ void main() {
         if (all(greaterThanEqual(bary, vec3(0.0))))
         {
             vec4 color = frag(bary, f0, f1, f2);
-            imageData[pixelIndex] = packUnorm4x8(color.bgra);
+            render_texture.pixels[pixelIndex] = vec4(1, 0, 0, 1);// color.rgba;
             return;
         }
     }

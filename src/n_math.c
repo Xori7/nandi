@@ -31,3 +31,8 @@ F64 n_rand_next_f64(N_Random *random, F64 min, F64 max) {
     F64 v = (F32)n_rand_next_i64(random, 0, MANTISA_MAX) / (F64)MANTISA_MAX;
     return min + ((v) * (max - min));
 }
+
+
+Bool n_math_equal_vec4_i32(N_Vec4_I32 lhs, N_Vec4_I32 rhs) {
+    return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z && lhs.w == rhs.w;
+}

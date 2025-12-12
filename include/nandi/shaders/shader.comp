@@ -9,7 +9,7 @@
 #include "nandi/n_graphics_shader.h"
 
 layout(buffer_reference, scalar, buffer_reference_align = 8) readonly buffer N_Material {
-    ivec4     buff_size;
+    ivec4     size;
     float    params[64];      // 16 × vec4
     uint64_t textures[8];
     uint64_t buffers[8];
@@ -18,9 +18,9 @@ layout(buffer_reference, scalar, buffer_reference_align = 8) readonly buffer N_M
 };
 
 layout(buffer_reference, scalar, buffer_reference_align = 8) readonly buffer N_Texture {
-    ivec4                buff_size;
+    ivec4                size;
     N_TextureDescriptor descriptor;
-    vec4                data[];
+    vec4                pixels[];
 };
 
 
@@ -54,9 +54,9 @@ vec4 frag(vec3 coords, Frag v1, Frag v2, Frag v3) {
 
     vec4 color = coords.x * v1.color + coords.y * v2.color + coords.z * v3.color;
     vec2 uv = coords.x * v1.uv + coords.y * v2.uv + coords.z * v3.uv;
-    vec4 size = albedo.buff_size;
+    vec4 size = albedo.size;
     ivec2 texel = ivec2(int(uv.x * size.x), int(uv.y * size.y));
-    vec4 pixel = color * albedo.data[int(texel.y * size.x + texel.x)].rgba;
+    vec4 pixel = color * albedo.pixels[int(texel.y * size.x + texel.x)].rgba;
     return pixel;//vec4(uv.x, uv.y, uv.z, 1);
 }
 

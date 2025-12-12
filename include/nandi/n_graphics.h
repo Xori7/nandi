@@ -35,16 +35,6 @@ extern const N_Shader*  n_graphics_shader_create(const char *shader_path);
 extern void             n_graphics_shader_destroy(const N_Shader *shader);
 extern void             n_graphics_shader_set_buffer(N_Shader *shader, const N_GraphicsBuffer *buffer, U32 buffer_index);
 
-typedef struct N_CommandBuffer N_CommandBuffer;
-extern const N_CommandBuffer*   n_graphics_command_buffer_create(void);
-extern void                     n_graphics_command_buffer_destroy(const N_CommandBuffer *command_buffer);
-extern void                     n_graphics_command_buffer_begin(const N_CommandBuffer *command_buffer);
-extern void                     n_graphics_command_buffer_end(const N_CommandBuffer *command_buffer);
-extern void                     n_graphics_command_buffer_cmd_dispatch(const N_CommandBuffer *command_buffer, const N_Shader *shader, U32 work_g_x, U32 work_g_y, U32 work_g_z);
-extern void                     n_graphics_command_buffer_present(const N_CommandBuffer *command_buffer, const N_GraphicsBuffer *frame_buffer);
-extern void                     n_graphics_command_buffer_submit(const N_CommandBuffer *command_buffer);
-extern void                     n_graphics_command_buffer_reset(const N_CommandBuffer *command_buffer);
-
 #define N_GRAPHICS_CPU 1
 #include "nandi/n_graphics_shader.h"
 
@@ -61,12 +51,27 @@ typedef enum {
 typedef struct N_Texture N_Texture;
 
 extern const N_Texture* n_graphics_texture_create_from_file(const char *path);
-extern const N_Texture* n_graphics_texture_create(U32 width, U32 height, U32 depth, N_TextureFormat format);
+extern const N_Texture* n_graphics_texture_create(N_Vec4_I32 size, N_TextureFormat format);
 extern void             n_graphics_texture_destroy(N_Texture *texture);
 extern void*            n_graphics_texture_map(const N_Texture *texture);
 extern void             n_graphics_texture_unmap(const N_Texture *texture);
 extern N_TextureFormat  n_graphics_texture_format(const N_Texture *texture);
 extern U64              n_graphics_texture_get_address(const N_Texture *texture);
+extern N_Vec4_I32       n_graphics_texture_get_size(const N_Texture *texture);
+const N_GraphicsBuffer* n_graphics_texture_get_buffer(const N_Texture *texture);
+
+
+// ## Command Buffer ##
+
+typedef struct N_CommandBuffer N_CommandBuffer;
+extern const N_CommandBuffer*   n_graphics_command_buffer_create(void);
+extern void                     n_graphics_command_buffer_destroy(const N_CommandBuffer *command_buffer);
+extern void                     n_graphics_command_buffer_begin(const N_CommandBuffer *command_buffer);
+extern void                     n_graphics_command_buffer_end(const N_CommandBuffer *command_buffer);
+extern void                     n_graphics_command_buffer_cmd_dispatch(const N_CommandBuffer *command_buffer, const N_Shader *shader, U32 work_g_x, U32 work_g_y, U32 work_g_z);
+extern void                     n_graphics_command_buffer_present(const N_CommandBuffer *command_buffer, const N_Texture *texture);
+extern void                     n_graphics_command_buffer_submit(const N_CommandBuffer *command_buffer);
+extern void                     n_graphics_command_buffer_reset(const N_CommandBuffer *command_buffer);
 
 // ## Material ##
 
@@ -88,5 +93,39 @@ extern void                     n_graphics_material_set_properties(N_Material *m
 extern N_MaterialProperties*    n_graphics_material_get_properties(const N_Material *material);
 extern U32                      n_graphics_material_upload_to_per_frame_buffer(N_Material *material);
 extern void                     n_graphics_material_clear_per_frame_buffer(void);
+
+// ## Camera ##
+typedef struct N_Camera N_Camera;
+
+struct N_Camera {
+    N_Matrix4x4 view;
+    N_Matrix4x4 projection;
+};
+
+N_Camera n_camera_create(N_Vec3_F32 position, N_Vec3_F32 look_at, F32 fov, N_Texture render_target);
+
+// ## Mesh ##
+typedef struct N_Mesh N_Mesh;
+
+extern N_Mesh*      n_mesh_create(void);
+extern void         n_mesh_destroy(const N_Mesh *mesh);
+extern void         n_mesh_name_set(const N_Mesh *mesh, const char *name);
+extern char*        n_mesh_name_get(const N_Mesh *mesh);
+
+extern U32          n_mesh_vertices_count_get(const N_Mesh *mesh);
+extern void         n_mesh_vertices_count_set(const N_Mesh *mesh, U32 count, U32 stride);
+
+typedef void* TVert;
+extern TVert        n_mesh_vertices_map(const N_Mesh *mesh);
+extern void         n_mesh_vertices_unmap(const N_Mesh *mesh);
+
+extern void         n_mesh_indices_count_set(const N_Mesh *mesh, U32 count);
+extern void         n_mesh_indices_count_get(const N_Mesh *mesh, U32 count);
+
+extern U32*         n_mesh_indices_map(const N_Mesh *mesh);
+extern void         n_mesh_indices_unmap(const N_Mesh *mesh);
+
+extern void         n_mesh_render(const N_Camera *camera, const N_Mesh *mesh, const N_Material *material, N_Matrix4x4 matrix);
+extern void         n_mesh_render_instanced(const N_Camera *camera, const N_Mesh *mesh, const N_Material *material, U32 count, const N_Matrix4x4 *matrices);
 
 #endif // !N_GRAPHICS_H

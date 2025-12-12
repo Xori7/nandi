@@ -23,4 +23,9 @@
     }																									\
 }
 
+struct N_Texture {
+    N_GraphicsBuffer* buffer;
+    N_TextureFormat format;
+};
+
 #endif // !N_GRAPHICS_VULKAN_H

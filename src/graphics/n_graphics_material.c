@@ -1,5 +1,4 @@
 #include "nandi/n_graphics.h"
-#include "graphics/n_graphics_internal.h"
 
 struct N_Material {
     U32 id;
