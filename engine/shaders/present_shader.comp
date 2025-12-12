@@ -22,13 +22,14 @@ layout(buffer_reference, scalar, buffer_reference_align = 8) buffer N_FrameBuffe
     uint pixels[];
 };
 
-layout(buffer_reference, scalar, buffer_reference_align = 8) readonly buffer N_Texture {
+layout(buffer_reference, scalar, buffer_reference_align = 8) buffer N_Texture {
     ivec4               size;
     N_TextureDescriptor descriptor;
     vec4                pixels[];
 };
 
 layout(std430, binding = 0) buffer buff {
+    ivec4 size;
     N_PresentShaderBuffer _this;
 };
 
@@ -45,4 +46,5 @@ void main() {
     
     uint pixelIndex = uint(pixel.y * size.x + pixel.x);
     frame_buffer.pixels[pixelIndex] = packUnorm4x8(texture.pixels[pixelIndex].bgra);
+    texture.pixels[pixelIndex] = vec4(0, 0, 0, 0);
 }

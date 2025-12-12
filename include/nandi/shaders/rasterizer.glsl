@@ -1,12 +1,15 @@
-BUFFER(global_buffer, 0)
+layout(std430, binding = 0) buffer global_buff {
+    ivec4 global_size;
     N_ShaderGlobal global;
 };
 
 layout(buffer_reference, scalar, buffer_reference_align = 8) readonly buffer N_Vertices {
+    ivec4 size;
     Vert data[];
 };
 
 layout(buffer_reference, scalar, buffer_reference_align = 8) readonly buffer N_Indices {
+    ivec4 size;
     uint data[];
 };
 
@@ -86,7 +89,7 @@ void main() {
         if (all(greaterThanEqual(bary, vec3(0.0))))
         {
             vec4 color = frag(bary, f0, f1, f2);
-            render_texture.pixels[pixelIndex] = vec4(1, 0, 0, 1);// color.rgba;
+            render_texture.pixels[pixelIndex] = color.rgba;
             return;
         }
     }
