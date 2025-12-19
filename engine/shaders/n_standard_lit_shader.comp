@@ -6,24 +6,8 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_scalar_block_layout         : require   // optional but good
 
-#include "nandi/n_graphics_shader.h"
-
-layout(buffer_reference, scalar, buffer_reference_align = 8) readonly buffer N_Material {
-    ivec4     size;
-    float    params[64];      // 16 × vec4
-    uint64_t textures[8];
-    uint64_t buffers[8];
-    uint     flags;
-    uint     _pad[3];
-};
-
-layout(buffer_reference, scalar, buffer_reference_align = 8) readonly buffer N_Texture {
-    ivec4                size;
-    N_TextureDescriptor descriptor;
-    vec4                pixels[];
-};
-
-
+#include "n_standard.glsl"
+                                                          
 struct Vert {
     vec2 position;
     vec2 uv;
@@ -59,5 +43,3 @@ vec4 frag(vec3 coords, Frag v1, Frag v2, Frag v3) {
     vec4 pixel = color * albedo.pixels[int(texel.y * size.x + texel.x)].rgba;
     return pixel;//vec4(uv.x, uv.y, uv.z, 1);
 }
-
-// vim: set filetype=c :

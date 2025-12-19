@@ -33,6 +33,6 @@ F64 n_rand_next_f64(N_Random *random, F64 min, F64 max) {
 }
 
 
-Bool n_math_equal_vec4_i32(N_Vec4_I32 lhs, N_Vec4_I32 rhs) {
+Bool n_math_vec4_i32_equals(N_Vec4_I32 lhs, N_Vec4_I32 rhs) {
     return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z && lhs.w == rhs.w;
 }

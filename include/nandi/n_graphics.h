@@ -94,38 +94,52 @@ extern N_MaterialProperties*    n_graphics_material_get_properties(const N_Mater
 extern U32                      n_graphics_material_upload_to_per_frame_buffer(N_Material *material);
 extern void                     n_graphics_material_clear_per_frame_buffer(void);
 
-// ## Camera ##
-typedef struct N_Camera N_Camera;
-
-struct N_Camera {
-    N_Matrix4x4 view;
-    N_Matrix4x4 projection;
-};
-
-N_Camera n_camera_create(N_Vec3_F32 position, N_Vec3_F32 look_at, F32 fov, N_Texture render_target);
-
 // ## Mesh ##
 typedef struct N_Mesh N_Mesh;
 
-extern N_Mesh*      n_mesh_create(void);
-extern void         n_mesh_destroy(const N_Mesh *mesh);
-extern void         n_mesh_name_set(const N_Mesh *mesh, const char *name);
-extern char*        n_mesh_name_get(const N_Mesh *mesh);
+typedef enum {
+    N_UVChannel_0,
+    N_UVChannel_1,
+    N_UVChannel_2,
+    N_UVChannel_3,
+    N_UVChannel_COUNT,
+} N_UVChannel;
 
-extern U32          n_mesh_vertices_count_get(const N_Mesh *mesh);
-extern void         n_mesh_vertices_count_set(const N_Mesh *mesh, U32 count, U32 stride);
+extern const N_Mesh*            n_mesh_create(void);
+extern void                     n_mesh_destroy(N_Mesh *mesh);
 
-typedef void* TVert;
-extern TVert        n_mesh_vertices_map(const N_Mesh *mesh);
-extern void         n_mesh_vertices_unmap(const N_Mesh *mesh);
+extern const N_GraphicsBuffer*  n_mesh_get_vertex_buffer(const N_Mesh *mesh);
+extern void                     n_mesh_set_vertex_buffer(N_Mesh *mesh, const N_GraphicsBuffer *buffer);
+extern void                     n_mesh_set_vertices(N_Mesh *mesh, N_Vec3_F32 *vertices, U32 count);
 
-extern void         n_mesh_indices_count_set(const N_Mesh *mesh, U32 count);
-extern void         n_mesh_indices_count_get(const N_Mesh *mesh, U32 count);
+extern const N_GraphicsBuffer*  n_mesh_get_uv_buffer(const N_Mesh *mesh, N_UVChannel channel);
+extern void                     n_mesh_set_uv_buffer(N_Mesh *mesh, N_UVChannel channel, const N_GraphicsBuffer *buffer);
+extern void                     n_mesh_set_uvs_vec2(N_Mesh *mesh, N_UVChannel channel, N_Vec2_F32 *uvs, U32 count);
+extern void                     n_mesh_set_uvs_vec3(N_Mesh *mesh, N_UVChannel channel, N_Vec3_F32 *uvs, U32 count);
+extern void                     n_mesh_set_uvs_vec4(N_Mesh *mesh, N_UVChannel channel, N_Vec4_F32 *uvs, U32 count);
 
-extern U32*         n_mesh_indices_map(const N_Mesh *mesh);
-extern void         n_mesh_indices_unmap(const N_Mesh *mesh);
+extern const N_GraphicsBuffer*  n_mesh_get_uv_custom_buffer(const N_Mesh *mesh);
+extern void                     n_mesh_set_uv_custom_buffer(N_Mesh *mesh, const N_GraphicsBuffer *buffer);
+extern void                     n_mesh_set_uvs_custom(N_Mesh *mesh, void *uvs, U32 count, U32 stride);
 
-extern void         n_mesh_render(const N_Camera *camera, const N_Mesh *mesh, const N_Material *material, N_Matrix4x4 matrix);
-extern void         n_mesh_render_instanced(const N_Camera *camera, const N_Mesh *mesh, const N_Material *material, U32 count, const N_Matrix4x4 *matrices);
+extern const N_GraphicsBuffer*  n_mesh_get_index_buffer(const N_Mesh *mesh);
+extern void                     n_mesh_set_index_buffer(N_Mesh *mesh, const N_GraphicsBuffer *buffer);
+extern void                     n_mesh_set_indices(N_Mesh *mesh, U32 *indices, U32 count);
+
+// ## Camera ##
+typedef struct N_Camera N_Camera;
+
+extern N_Camera*        n_camera_create(void);
+extern void             n_camera_destroy(N_Camera *camera);
+extern void             n_camera_set_projection_matrix(N_Camera *camera, N_Matrix4x4 projection);
+extern void             n_camera_set_projection_orthographic(N_Camera *camera, F32 width, F32 height, F32 size, F32 near, F32 far);
+extern void             n_camera_set_projection_perspective(N_Camera *camera, F32 width, F32 height, F32 fov, F32 near, F32 far);
+extern void             n_camera_set_view_matrix(N_Camera *camera, N_Matrix4x4 view);
+extern void             n_camera_set_position(N_Camera *camera, N_Vec3_F32 position);
+extern N_Vec3_F32       n_camera_get_position(N_Camera *camera);
+extern void             n_camera_set_rotation_euler(N_Camera *camera, N_Vec3_F32 rotation);
+
+extern void             n_camera_render_mesh(N_Camera *camera, const N_Mesh *mesh, const N_Material *material, N_Matrix4x4 transform);
+extern void             n_camera_render_submit(N_Camera *camera, const N_Texture *render_target);
 
 #endif // !N_GRAPHICS_H

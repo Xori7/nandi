@@ -102,16 +102,15 @@ void run(void) {
             if (n_graphics_window_size_changed(window)) {
                 n_graphics_recreate_swap_chain(window);
 
-                N_DEBUG_MESURE("frame buffer rebuild",
-                    U32 width = n_graphics_window_get_size_x(window);
-                    U32 height = n_graphics_window_get_size_y(window);
-                    n_graphics_texture_destroy((N_Texture*)render_texture);
+                U32 width = n_graphics_window_get_size_x(window);
+                U32 height = n_graphics_window_get_size_y(window);
 
-                    render_texture = n_graphics_texture_create((N_Vec4_I32){.x = width, .y = height}, sizeof(N_RGBA_F32));
-                    N_ShaderGlobal *global = n_graphics_buffer_map(global_buffer);
-                    global->render_texture = n_graphics_texture_get_address(render_texture);
-                    n_graphics_buffer_unmap(global_buffer);
-                );
+                n_graphics_texture_destroy((N_Texture*)render_texture);
+                render_texture = n_graphics_texture_create((N_Vec4_I32){.x = width, .y = height}, sizeof(N_RGBA_F32));
+
+                N_ShaderGlobal *global = n_graphics_buffer_map(global_buffer);
+                global->render_texture = n_graphics_texture_get_address(render_texture);
+                n_graphics_buffer_unmap(global_buffer);
             }
 
             N_Vec4_I32 size = n_graphics_texture_get_size(render_texture);

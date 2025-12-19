@@ -361,7 +361,6 @@ static void init_present_shader(void) {
     _gs.present_shader_buffer = n_graphics_buffer_create((N_Vec4_I32){.x = 1}, sizeof(N_PresentShaderBuffer));
     n_graphics_shader_set_buffer((N_Shader*)_gs.present_shader, _gs.present_shader_buffer, 0); 
     _gs.copy_command_buffer = n_graphics_command_buffer_create();
-
 }
 
 extern void n_graphics_initialize(void) {
@@ -896,9 +895,7 @@ extern void n_graphics_command_buffer_cmd_dispatch(const N_CommandBuffer *comman
 extern void n_graphics_command_buffer_present(const N_CommandBuffer *command_buffer, const N_Texture *texture) {
     N_Vec4_I32 size_texture = n_graphics_texture_get_size(texture);
     N_Vec4_I32 size_buffer = n_graphics_buffer_get_size(_gs.frame_buffer);
-    printf("Buffer usage flags = 0x%llx\n", n_graphics_buffer_get_address(_gs.frame_buffer));
-    printf("Buffer usage flags = 0x%llx\n", n_graphics_texture_get_address(texture));
-    if (n_math_equal_vec4_i32(size_texture, size_buffer) == FALSE) {
+    if (n_math_vec4_i32_equals(size_texture, size_buffer) == FALSE) {
         n_debug_err("frame buffer and texture to present have different sizes, which is not allowed! (%d, %d, %d, %d) != (%d, %d, %d, %d)",
                 size_texture.x, size_texture.y, size_texture.z, size_texture.w, size_buffer.x, size_buffer.y, size_buffer.z, size_buffer.w);
         exit(-1);

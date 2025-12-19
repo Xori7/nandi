@@ -1,23 +1,4 @@
-layout(std430, binding = 0) buffer global_buff {
-    ivec4 global_size;
-    N_ShaderGlobal global;
-};
-
-layout(buffer_reference, scalar, buffer_reference_align = 8) readonly buffer N_Vertices {
-    ivec4 size;
-    Vert data[];
-};
-
-layout(buffer_reference, scalar, buffer_reference_align = 8) readonly buffer N_Indices {
-    ivec4 size;
-    uint data[];
-};
-
 layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE, local_size_z = 1) in;
-
-N_ShaderGlobal get_global() {
-    return global;
-}
 
 float linear_to_srgb(float linear) {
     if (linear <= 0.0031308)
@@ -39,7 +20,7 @@ Frag vert(Vert vert);
 vec4 frag(vec3 baricentric, Frag v0, Frag v1, Frag v2);
 
 void main() {
-    N_Texture render_texture = N_Texture(get_global().render_texture);
+    N_Texture render_texture = N_Texture(global.render_texture);
     N_Indices indices = N_Indices(get_global().index_buffer);
     N_Vertices vertices = N_Vertices(get_global().vertex_buffer);
 
@@ -47,12 +28,6 @@ void main() {
     ivec2 size  = ivec2(render_texture.size.xy);
 
     if (any(greaterThanEqual(pixel, size))) return;
-    
-    /*
-    if (gl_WorkGroupID.x % 2 == 0 || gl_WorkGroupID.y % 2 == 0) {
-        return;
-    }
-    */
 
     uint pixelIndex = uint(pixel.y * size.x + pixel.x);
     vec4 finalColor = vec4(0.0, 0.0, 0.0, 1.0);

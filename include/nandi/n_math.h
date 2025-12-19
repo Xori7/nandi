@@ -26,7 +26,7 @@ typedef struct {
     I32 x, y, z, w;
 } N_Vec4_I32;
 
-Bool n_math_equal_vec4_i32(N_Vec4_I32 lhs, N_Vec4_I32 rhs);
+Bool n_math_vec4_i32_equals(N_Vec4_I32 lhs, N_Vec4_I32 rhs);
 
 typedef union {
     struct {
