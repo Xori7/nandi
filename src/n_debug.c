@@ -1,12 +1,11 @@
-// NOTE(kkard2): idk man
-#include <assert.h>
 #define _POSIX_C_SOURCE 199309L
+#include <time.h>
 
+#include <assert.h>
 #include "nandi/n_core.h"
 #include "nandi/n_threading.h"
 #include <stdarg.h>
 #include <stdio.h>
-#include <time.h>
 
 static FILE *fstream;
 
